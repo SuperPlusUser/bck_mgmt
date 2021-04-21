@@ -5,6 +5,7 @@ from pathlib import Path
 import datetime
 import logging
 import sys
+import shutil
 #import subprocess
 
 #conf_path = "example-config.yaml" # default config path
@@ -169,7 +170,7 @@ for repo in backup_repo:
             if destination is not None:
                 if not destination.exists():
                     logging.info("Moving {} to {}. ".format(current_file, destination))
-                    current_file.replace(destination)
+                    current_file = shutil.move(current_file, destination)
                 else:
                     logging.error("Destination file already exists. ")
             # delete file:
@@ -202,7 +203,7 @@ for repo in backup_repo:
                 destination = Path(repo['move_old_to']) / Path(file[1].name)
                 if not destination.exists():
                     logging.info("Moving {} to {}. ".format(file[1], destination))
-                    file[1].replace(destination)
+                    file[1] = shutil.move(file[1], destination)
                 else:
                     logging.error("Destination file already exists. ")
             elif 'delete_old' in repo.keys() and repo['delete_old']:
