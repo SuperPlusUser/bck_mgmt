@@ -232,15 +232,17 @@ for repo in backup_repo:
         alias = str(current_dir)
 
     report_string += alias + ": " + crit_str + warn_str
-    report_string += "Directory contains {} matching file{} with {}. Newest file is {} days old. {} file{} deleted. ".format(
-        dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size), newest_file_age.days, files_deleted, "" if files_deleted == 1 else "s"
-    )
+    report_string += "Directory contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
+    if dir_files > 0:
+        report_string += "Newest file is {} days old. {} file{} deleted. ".format( newest_file_age.days, files_deleted, "" if files_deleted == 1 else "s")
 
     alias = alias.replace(" ","_")
     perfdata_array.append("{}_files={}".format(alias, dir_files))
     perfdata_array.append("{}_size={}b".format(alias, dir_size))
-    perfdata_array.append("{}_age={}{}".format(alias, newest_file_age.days, (";" + str(repo['warn_age'])) if 'warn_age' in repo.keys() else ""))
-    perfdata_array.append("{}_deleted={}".format(alias, files_deleted))
+    if dir_files > 0:
+        perfdata_array.append("{}_age={}{}".format(alias, newest_file_age.days, (";" + str(repo['warn_age'])) if 'warn_age' in repo.keys() else ""))
+        perfdata_array.append("{}_deleted={}".format(alias, files_deleted))
+
     
     total_size+=dir_size
     total_files+=dir_files
