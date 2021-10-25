@@ -75,15 +75,10 @@ for repo in backup_repo:
     if not current_dir.is_dir():
         crit_str += "Directory '{}' not found. ".format(current_dir)
         logging.error(crit_str)
-        report_string += "\n[CRITICAL] " + crit_str
-        summary_crit_str += crit_str
-        crit_flag = True
-        continue
-    
-    matching_files = current_dir.glob(repo['pattern'])
-    sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=True)
-
-    logging.debug("Found {} matching backup files in Directory '{}'. ".format(len(sorted_file_list), current_dir))
+    else:
+        matching_files = current_dir.glob(repo['pattern'])
+        sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=True)
+        logging.debug("Found {} matching backup files in Directory '{}'. ".format(len(sorted_file_list), current_dir))
 
     if 'weekly' in repo.keys():
         weekly_path = Path(repo['weekly']['directory'])
@@ -114,14 +109,19 @@ for repo in backup_repo:
         else:
             years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).year for f in yearly_path.glob(repo['pattern']))
             subdirs.append('yearly')
-    
+
+    if crit_str:
+        report_string += "\n[CRITICAL] " + crit_str
+        summary_crit_str += crit_str
+        crit_flag = True
+        continue
+        
     if len(sorted_file_list) == 0:
         log = "Directory '{}' does not contain any file matching the pattern '{}'. ".format(current_dir, repo['pattern'])
         logging.warning(log)
         warn_str += log
         #continue
-
-    
+  
     for file_num, file in enumerate(sorted_file_list):
 
         current_file = file[1]
