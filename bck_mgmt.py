@@ -49,7 +49,7 @@ if not conf_path or not Path(conf_path).is_file():
 # Parse config file:
 with open(conf_path, 'r') as stream:
     parsed_config = (yaml.safe_load(stream))
-        
+
 log_cfg = parsed_config['logging']
 backup_repo = parsed_config['backup_repository']
 
@@ -60,10 +60,10 @@ logging.debug("Parsed Config: \n{}".format(parsed_config))
 
 
 for repo in backup_repo:
-    
+
     current_dir = Path(repo['directory'])
     subdirs = []
-    
+
     dir_files = 0
     dir_size = 0
     files_deleted = 0
@@ -71,7 +71,7 @@ for repo in backup_repo:
 
     warn_str = ""
     crit_str = ""
-    
+
     if not current_dir.is_dir():
         crit_str += "Directory '{}' not found. ".format(current_dir)
         logging.error(crit_str)
@@ -115,13 +115,13 @@ for repo in backup_repo:
         summary_crit_str += crit_str
         crit_flag = True
         continue
-        
+
     if len(sorted_file_list) == 0:
         log = "Directory '{}' does not contain any file matching the pattern '{}'. ".format(current_dir, repo['pattern'])
         logging.warning(log)
         warn_str += log
         #continue
-  
+
     for file_num, file in enumerate(sorted_file_list):
 
         current_file = file[1]
@@ -186,13 +186,13 @@ for repo in backup_repo:
         else:
             dir_size+=current_file_size
             dir_files+=1
-            
+
 
     # clean up subdirectories:
     for i in subdirs:
         subdir = Path(repo[i]['directory'])
         keep = int(repo[i]['keep'])
-        
+
         matching_files = subdir.glob(repo['pattern'])
         sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=True)
         for file_num, file in enumerate(sorted_file_list):
@@ -203,7 +203,7 @@ for repo in backup_repo:
                 destination = Path(repo['move_old_to']) / Path(file[1].name)
                 if not destination.exists():
                     logging.info("Moving {} to {}. ".format(file[1], destination))
-                    file[1] = shutil.move(file[1], destination)
+                    shutil.move(file[1], destination)
                 else:
                     logging.error("Destination file already exists. ")
             elif 'delete_old' in repo.keys() and repo['delete_old']:
@@ -214,7 +214,7 @@ for repo in backup_repo:
                 logging.info("{} would have been deleted, but 'delete_old' is not enabled. ".format(file[1]))
                 dir_size+=file[2]
                 dir_files+=1
-                
+
 
     # Reporting + perfdata:
     if crit_str:
@@ -243,7 +243,7 @@ for repo in backup_repo:
         perfdata_array.append("{}_age={}{}".format(alias, newest_file_age.days, (";" + str(repo['warn_age'])) if 'warn_age' in repo.keys() else ""))
         perfdata_array.append("{}_deleted={}".format(alias, files_deleted))
 
-    
+
     total_size+=dir_size
     total_files+=dir_files
     total_files_deleted+=files_deleted
