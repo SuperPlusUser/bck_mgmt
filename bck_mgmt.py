@@ -6,7 +6,10 @@ import datetime
 import logging
 import sys
 import shutil
+import re
 #import subprocess
+
+MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1000000 # do not check files bigger than 1MB
 
 #conf_path = "example-config.yaml" # default config path
 
@@ -68,6 +71,7 @@ for repo in backup_repo:
     dir_size = 0
     files_deleted = 0
     newest_file_age = 0
+    compliance_violations = 0
 
     warn_str = ""
     crit_str = ""
@@ -149,6 +153,34 @@ for repo in backup_repo:
                 )
                 logging.warning(log)
                 warn_str += log
+
+            # check newest file for compliance:
+            if 'compliance_check' in repo.keys():
+                if current_file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
+                    log = "Newest file '{}' is to big for compliance checking (Size: {}). Skipping... ".format(current_file, humanize_size(current_file_size))
+                    logging.error(log)
+                    warn_str += log
+                else:
+                    with open(current_file, 'r') as f:
+                        current_file_content = f.read()
+                    for check in repo['compliance_check']:
+                        match = re.search(check['regex'], current_file_content, re.MULTILINE)
+                        must_not_match = True if 'must_not_match' in check.keys() and check['must_not_match'] else False
+                        if (match and must_not_match) or (not match and not must_not_match):
+                            # compliance violation:
+                            compliance_violations += 1
+                            if 'violation_message' in check.keys():
+                                try: 
+                                    log = "Compliance violation in file '{}': {} ".format(current_file, match.expand(check['violation_message']) if match else check['violation_message'])
+                                except re.error as err:
+                                    log = "Error: Cannot expand violation_message '{}': {}. ".format(check['violation_message'], err)
+                            else:
+                                log = "Compliance violation in file '{}': Does {}match regex '{}'. ".format(current_file, "" if match else "not ", check['regex'])
+                            logging.critical(log)
+                            crit_str += log
+                        else:
+                            # compliant
+                            logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(current_file, check['regex']))
 
         # clean up old files:
         if 'keep' in repo.keys() and file_num >= int(repo['keep']):
@@ -235,6 +267,8 @@ for repo in backup_repo:
     report_string += "Directory contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
     if dir_files > 0:
         report_string += "Newest file is {} days old. {} file{} deleted. ".format( newest_file_age.days, files_deleted, "" if files_deleted == 1 else "s")
+    if compliance_violations == 0 and 'compliance_check' in repo.keys():
+        report_string += "No compliance violations. "
 
     alias = alias.replace(" ","_")
     perfdata_array.append("{}_files={}".format(alias, dir_files))
