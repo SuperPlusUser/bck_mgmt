@@ -7,6 +7,7 @@ import logging
 import sys
 import shutil
 import re
+import difflib
 #import subprocess
 
 MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1000000 # do not check files bigger than 1MB
@@ -137,8 +138,12 @@ for repo in backup_repo:
 
         # check age and file size of the newest file in the directory:
         if file_num == 0:
-            logging.debug("'{}' is the newest file in the directory.".format(current_file))
-            newest_file_age = datetime.datetime.now() - current_file_mtime
+            newest_file = current_file
+            newest_file_mtime = current_file_mtime
+            newest_file_age = datetime.datetime.now() - newest_file_mtime
+            newest_file_content = None
+            
+            logging.debug("'{}' is the newest file in the directory. ".format(newest_file))
 
             if 'warn_age' in repo.keys() and newest_file_age > datetime.timedelta(days = repo['warn_age']):
                 log = "Newest file '{}' is older than defined warn_age (Age: {}, warn_age: {} day{}). ".format(
@@ -154,33 +159,59 @@ for repo in backup_repo:
                 logging.warning(log)
                 warn_str += log
 
-            # check newest file for compliance:
-            if 'compliance_check' in repo.keys():
-                if current_file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
-                    log = "Newest file '{}' is to big for compliance checking (Size: {}). Skipping... ".format(current_file, humanize_size(current_file_size))
-                    logging.error(log)
-                    warn_str += log
-                else:
+            # get file_content if we need it for compliance_checking or comparing:
+            if 'compliance_check' in repo.keys() or ('compare_with_previous' in repo.keys() and repo['compare_with_previous']):
+                try:
+                    if current_file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
+                        raise ValueError("File exceeds MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK")
                     with open(current_file, 'r') as f:
-                        current_file_content = f.read()
-                    for check in repo['compliance_check']:
-                        match = re.search(check['regex'], current_file_content, re.MULTILINE)
-                        must_not_match = True if 'must_not_match' in check.keys() and check['must_not_match'] else False
-                        if (match and must_not_match) or (not match and not must_not_match):
-                            # compliance violation:
-                            compliance_violations += 1
-                            if 'violation_message' in check.keys():
-                                try: 
-                                    log = "Compliance violation in file '{}': {} ".format(current_file, match.expand(check['violation_message']) if match else check['violation_message'])
-                                except re.error as err:
-                                    log = "Error: Cannot expand violation_message '{}': {}. ".format(check['violation_message'], err)
-                            else:
-                                log = "Compliance violation in file '{}': Does {}match regex '{}'. ".format(current_file, "" if match else "not ", check['regex'])
-                            logging.critical(log)
-                            crit_str += log
+                        newest_file_content = f.read()
+                except (ValueError, UnicodeDecodeError) as err:
+                    warn_str += "Content of '{}' can't be loaded for compliance check or comparison. See logfile for more details. ".format(current_file)
+                    logging.error("Content of '{}' can't be loaded: {}. Skipping compliance check and comparison for this file. Note: Compliance checks and comparisons only work for text files! ".format(current_file, err))
+            
+            # check newest file for compliance:    
+            if 'compliance_check' in repo.keys() and newest_file_content is not None:
+                for check in repo['compliance_check']:
+                    match = re.search(check['regex'], newest_file_content, re.MULTILINE)
+                    must_not_match = True if 'must_not_match' in check.keys() and check['must_not_match'] else False
+                    if (match and must_not_match) or (not match and not must_not_match):
+                        # compliance violation:
+                        compliance_violations += 1
+                        if 'violation_message' in check.keys():
+                            try: 
+                                log = "Compliance violation in file '{}': {} ".format(current_file, match.expand(check['violation_message']) if match else check['violation_message'])
+                            except re.error as err:
+                                log = "Error: Cannot expand violation_message '{}': {}. ".format(check['violation_message'], err)
                         else:
-                            # compliant
-                            logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(current_file, check['regex']))
+                            log = "Compliance violation in file '{}': Does {}match regex '{}'. ".format(current_file, "" if match else "not ", check['regex'])
+                        logging.critical(log)
+                        crit_str += log
+                    else:
+                        # compliant
+                        logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(current_file, check['regex']))
+
+        # compare previous file with newest file:
+        if file_num == 1 and 'compare_with_previous' in repo.keys() and repo['compare_with_previous'] and newest_file_content is not None and current_file_size <= MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
+            with open(current_file, 'r') as f:
+                previous_file_content = f.read()
+            if previous_file_content == newest_file_content:
+                logging.info("Newest file '{}' equals previous file '{}'. ".format(newest_file, current_file))
+            else:
+                log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file, current_file)
+                logging.warning(log)
+                warn_str += log
+
+                diff = difflib.unified_diff(
+                    previous_file_content.splitlines(keepends=False), 
+                    newest_file_content.splitlines(keepends=False), 
+                    fromfile=current_file.name, 
+                    tofile=newest_file.name, 
+                    fromfiledate=current_file_mtime.isoformat(), 
+                    tofiledate=newest_file_mtime.isoformat(), 
+                    lineterm='',
+                    n = 2) # number of lines shown before and after differences
+                logging.info('Differences:\n'+'\n'.join(diff))
 
         # clean up old files:
         if 'keep' in repo.keys() and file_num >= int(repo['keep']):

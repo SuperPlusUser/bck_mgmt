@@ -41,6 +41,7 @@ backup_repository:
       - regex: '^ip access-list 1 (?!1\.2\.3\.4$|2\.3\.4\.5$)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
         must_not_match: true
         violation_message: 'Unallowed IP \1 in ACL 1!'
+    compare_with_previous: true # compare newest file with previous file and warn if there are differences. Note: only works for text files!
     
 #    ...                        # you can add as many repositorys as you want here
 
