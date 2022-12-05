@@ -218,17 +218,23 @@ for repo in backup_repo:
             # move into subdirectories:
             destination = None
 
+            if 'rename_moved_files' in repo.keys():
+                filename = datetime.datetime.now().strftime(repo['rename_moved_files'].format(current_file.name))
+                #logging.debug("File '{}' will be renamed to '{}'. ".format(current_file, filename))
+            else:
+                filename = current_file.name
+
             if 'weekly' in repo.keys() and weekly_path.is_dir() and not current_file_week in weeks_in_weekly:
-                destination = weekly_path / Path(current_file.name)
+                destination = weekly_path / Path(filename)
                 weeks_in_weekly.append(current_file_week)
             elif 'monthly' in repo.keys() and monthly_path.is_dir() and not current_file_month in months_in_monthly:
-                destination = monthly_path / Path(current_file.name)
+                destination = monthly_path / Path(filename)
                 months_in_monthly.append(current_file_month)
             elif 'yearly' in repo.keys() and yearly_path.is_dir() and not current_file_year in years_in_yearly:
-                destination = yearly_path / Path(current_file.name)
+                destination = yearly_path / Path(filename)
                 years_in_yearly.append(current_file_year)
             elif 'move_old_to' in repo.keys() and Path(repo['move_old_to']).is_dir():
-                destination = Path(repo['move_old_to']) / Path(current_file.name)
+                destination = Path(repo['move_old_to']) / Path(filename)
 
             if destination is not None:
                 if not destination.exists():
