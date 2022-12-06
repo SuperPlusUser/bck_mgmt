@@ -92,7 +92,7 @@ for repo in backup_repo:
             logging.error(log)
             crit_str += log
         else:
-            weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).isocalendar()[1] for f in weekly_path.glob(repo['pattern']))
+            weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%W") for f in weekly_path.glob(repo['pattern']))
             subdirs.append('weekly')
 
     if 'monthly' in repo.keys():
@@ -102,7 +102,7 @@ for repo in backup_repo:
             logging.error(log)
             crit_str += log
         else:
-            months_in_monthly = list(datetime.date.fromtimestamp(f.stat().st_mtime).month for f in monthly_path.glob(repo['pattern']))
+            months_in_monthly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m") for f in monthly_path.glob(repo['pattern']))
             subdirs.append('monthly')
 
     if 'yearly' in repo.keys():
@@ -112,7 +112,7 @@ for repo in backup_repo:
             logging.error(log)
             crit_str += log
         else:
-            years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).year for f in yearly_path.glob(repo['pattern']))
+            years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y") for f in yearly_path.glob(repo['pattern']))
             subdirs.append('yearly')
 
     if crit_str:
@@ -132,9 +132,9 @@ for repo in backup_repo:
         current_file = file[1]
         current_file_mtime = datetime.datetime.fromtimestamp(file[0])
         current_file_size = file[2]
-        current_file_week = current_file_mtime.isocalendar()[1]
-        current_file_month = current_file_mtime.month
-        current_file_year = current_file_mtime.year
+        current_file_week = current_file_mtime.strftime("%Y-%W")
+        current_file_month = current_file_mtime.strftime("%Y-%m")
+        current_file_year = current_file_mtime.strftime("%Y")
 
         # check age and file size of the newest file in the directory:
         if file_num == 0:
