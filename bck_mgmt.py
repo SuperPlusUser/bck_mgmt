@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+# Version 1.0 (09.12.2022)
+
 import yaml
 from pathlib import Path
 import datetime
