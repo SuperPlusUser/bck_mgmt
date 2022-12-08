@@ -1,4 +1,6 @@
-# Config File for Backup Management Script "bck_mgmt"
+# Example config file for backup management script "bck_mgmt"
+
+# Version 1.0 (09.12.2022)
 
 backup_repository:
 
@@ -8,7 +10,7 @@ backup_repository:
     keep: 3                     # defines how many backup files you want to keep in the base directory
     warn_age: 7                 # optional: the script will output a warning, if the newest file in the repo is older than the defined value in days
     warn_bytes: 1000            # optional: the script will output a warning, if the newest file in the repo is smaller than the defined value in bytes.
-    delete_old: true            # if set to false or omitted, the script will not actually delete files but log the files, which would have been deleted. Usefull for tests. 
+    delete_old: false           # if set to false or omitted, the script will not actually delete files but log the files, which would have been deleted. Usefull for tests. 
     move_old_to: /data/backups/test_repo1/archive/ # optional: move files to this directory instead of deleting them. Overwrites 'delete_old'.
     rename_moved_files: 'moved-%Y-%m-%d_{}' # optional: rename files when they are moved. '{}' will be replaced by the original filename. Make sure the given 'pattern' still matches after renaming!
                                 # % format codes can be used to add date and time. %Y-%m-%d will be replaced by the year, month and day the file was moved. See https://strftime.org/ for available format codes. 
@@ -45,7 +47,9 @@ backup_repository:
         violation_message: 'Unallowed IP \1 in ACL 1!'
     compare_with_previous: true # optional: compare newest file with previous file and warn if there are differences. Only works for text files!
     
-#    ...                        # you can add as many repositorys as you want here
+# - directory:   ...            # you can add as many repository directories here as you want
+#   pattern: ...
+#   ...
 
 logging:
     level: info                 # possible values: debug | info | warning | error
