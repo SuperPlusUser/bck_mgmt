@@ -12,7 +12,7 @@ import difflib
 
 MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1000000 # do not check files bigger than 1MB
 
-#conf_path = "example-config.yaml" # default config path
+conf_path = None # default config path can be set here
 
 total_size = 0
 total_files = 0
@@ -36,6 +36,18 @@ def humanize_size(num, suffix='B'):
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f %s%s" % (num, 'Yi', suffix)
+
+def load_file_content(file, file_size):
+    file_content = None
+    logging.debug("Loading content of file '{}' for comparison or compliance checking. ".format(file))
+    try:
+        if file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
+            raise ValueError("File exceeds MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK")
+        with open(file, 'r') as f:
+            file_content = f.read()
+    except (ValueError, UnicodeDecodeError) as err:
+        logging.error("Content of '{}' can't be loaded: {}. Skipping compliance check and comparison for this file. Note: Compliance checks and comparisons only work for text files! ".format(file, err))
+    return file_content
 
 
 # Parse arguments:
@@ -71,8 +83,10 @@ for repo in backup_repo:
     dir_files = 0
     dir_size = 0
     files_deleted = 0
-    newest_file_age = 0
     compliance_violations = 0
+    newest_file_age = 0
+    newest_file_content = None
+    previous_file_content = None
 
     warn_str = ""
     crit_str = ""
@@ -82,7 +96,7 @@ for repo in backup_repo:
         logging.error(crit_str)
     else:
         matching_files = current_dir.glob(repo['pattern'])
-        sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=True)
+        sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=False)
         logging.debug("Found {} matching backup files in Directory '{}'. ".format(len(sorted_file_list), current_dir))
 
     if 'weekly' in repo.keys():
@@ -115,6 +129,13 @@ for repo in backup_repo:
             years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y") for f in yearly_path.glob(repo['pattern']))
             subdirs.append('yearly')
 
+    if 'move_old_to' in repo.keys():
+        move_old_path = Path(repo['move_old_to'])
+        if not move_old_path.is_dir():
+            log = "'move_old_to' directory '{}' does not exist. Please create the directory. ".format(move_old_path)
+            logging.error(log)
+            crit_str += log
+
     if crit_str:
         report_string += "\n[CRITICAL] " + crit_str
         summary_crit_str += crit_str
@@ -136,15 +157,23 @@ for repo in backup_repo:
         current_file_month = current_file_mtime.strftime("%Y-%m")
         current_file_year = current_file_mtime.strftime("%Y")
 
-        # check age and file size of the newest file in the directory:
-        if file_num == 0:
+        # load content of previous (= 2nd newest) file if we need it for comparison later:
+        if file_num == len(sorted_file_list) - 2  and 'compare_with_previous' in repo.keys() and repo['compare_with_previous']:
+            previous_file = current_file
+            previous_file_mtime = current_file_mtime
+            previous_file_content = load_file_content(current_file, current_file_size)
+            if previous_file_content is None:
+                warn_str += "Content of '{}' can't be loaded for comparison. See logfile for more details. ".format(current_file)
+
+        # check newest file in the directory:
+        if file_num == len(sorted_file_list) - 1 :
             newest_file = current_file
             newest_file_mtime = current_file_mtime
             newest_file_age = datetime.datetime.now() - newest_file_mtime
-            newest_file_content = None
             
             logging.debug("'{}' is the newest file in the directory. ".format(newest_file))
 
+            # check age of newest file:
             if 'warn_age' in repo.keys() and newest_file_age > datetime.timedelta(days = repo['warn_age']):
                 log = "Newest file '{}' is older than defined warn_age (Age: {}, warn_age: {} day{}). ".format(
                     current_file, newest_file_age.days, repo['warn_age'], "" if repo['warn_age'] == 1 else "s"
@@ -152,6 +181,7 @@ for repo in backup_repo:
                 logging.warning(log)
                 warn_str += log
 
+            # check size of newest file:
             if 'warn_bytes' in repo.keys() and current_file_size < repo['warn_bytes']:
                 log = "Newest file '{}' is smaller than defined warn_bytes (Size: {}, warn_bytes: {} bytes). ".format(
                     current_file, humanize_size(current_file_size), repo['warn_bytes']
@@ -160,17 +190,12 @@ for repo in backup_repo:
                 warn_str += log
 
             # get file_content if we need it for compliance_checking or comparing:
-            if 'compliance_check' in repo.keys() or ('compare_with_previous' in repo.keys() and repo['compare_with_previous']):
-                try:
-                    if current_file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
-                        raise ValueError("File exceeds MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK")
-                    with open(current_file, 'r') as f:
-                        newest_file_content = f.read()
-                except (ValueError, UnicodeDecodeError) as err:
+            if 'compliance_check' in repo.keys() or ('compare_with_previous' in repo.keys() and repo['compare_with_previous'] and previous_file_content is not None):
+                newest_file_content = load_file_content(current_file, current_file_size)
+                if newest_file_content is None:
                     warn_str += "Content of '{}' can't be loaded for compliance check or comparison. See logfile for more details. ".format(current_file)
-                    logging.error("Content of '{}' can't be loaded: {}. Skipping compliance check and comparison for this file. Note: Compliance checks and comparisons only work for text files! ".format(current_file, err))
-            
-            # check newest file for compliance:    
+
+            # check newest file for compliance:
             if 'compliance_check' in repo.keys() and newest_file_content is not None:
                 for check in repo['compliance_check']:
                     match = re.search(check['regex'], newest_file_content, re.MULTILINE)
@@ -191,30 +216,28 @@ for repo in backup_repo:
                         # compliant
                         logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(current_file, check['regex']))
 
-        # compare previous file with newest file:
-        if file_num == 1 and 'compare_with_previous' in repo.keys() and repo['compare_with_previous'] and newest_file_content is not None and current_file_size <= MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
-            with open(current_file, 'r') as f:
-                previous_file_content = f.read()
-            if previous_file_content == newest_file_content:
-                logging.info("Newest file '{}' equals previous file '{}'. ".format(newest_file, current_file))
-            else:
-                log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file, current_file)
-                logging.warning(log)
-                warn_str += log
+            # compare newest file with previous file:
+            if 'compare_with_previous' in repo.keys() and repo['compare_with_previous'] and previous_file_content is not None and newest_file_content is not None:
+                if previous_file_content == newest_file_content:
+                    logging.info("Content of newest file '{}' equals content of previous file '{}'. ".format(newest_file, previous_file))
+                else:
+                    log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file, previous_file)
+                    logging.warning(log)
+                    warn_str += log
 
-                diff = difflib.unified_diff(
-                    previous_file_content.splitlines(keepends=False), 
-                    newest_file_content.splitlines(keepends=False), 
-                    fromfile=current_file.name, 
-                    tofile=newest_file.name, 
-                    fromfiledate=current_file_mtime.isoformat(), 
-                    tofiledate=newest_file_mtime.isoformat(), 
-                    lineterm='',
-                    n = 2) # number of lines shown before and after differences
-                logging.info('Differences:\n'+'\n'.join(diff))
+                    diff = difflib.unified_diff(
+                        previous_file_content.splitlines(keepends=False), 
+                        newest_file_content.splitlines(keepends=False), 
+                        fromfile=previous_file.name, 
+                        tofile=newest_file.name, 
+                        fromfiledate=previous_file_mtime.isoformat(), 
+                        tofiledate=newest_file_mtime.isoformat(), 
+                        lineterm='',
+                        n = 2) # number of lines shown before and after differences
+                    logging.info('Differences:\n'+'\n'.join(diff))
 
-        # clean up old files:
-        if 'keep' in repo.keys() and file_num >= int(repo['keep']):
+       # clean up old files:
+        if 'keep' in repo.keys() and ( len(sorted_file_list) - file_num ) > int(repo['keep']):
             # move into subdirectories:
             destination = None
 
@@ -224,31 +247,31 @@ for repo in backup_repo:
             else:
                 filename = current_file.name
 
-            if 'weekly' in repo.keys() and weekly_path.is_dir() and not current_file_week in weeks_in_weekly:
-                destination = weekly_path / Path(filename)
-                weeks_in_weekly.append(current_file_week)
+            if 'yearly' in repo.keys() and yearly_path.is_dir() and not current_file_year in years_in_yearly:
+                destination = yearly_path / Path(filename)
+                years_in_yearly.append(current_file_year)
             elif 'monthly' in repo.keys() and monthly_path.is_dir() and not current_file_month in months_in_monthly:
                 destination = monthly_path / Path(filename)
                 months_in_monthly.append(current_file_month)
-            elif 'yearly' in repo.keys() and yearly_path.is_dir() and not current_file_year in years_in_yearly:
-                destination = yearly_path / Path(filename)
-                years_in_yearly.append(current_file_year)
-            elif 'move_old_to' in repo.keys() and Path(repo['move_old_to']).is_dir():
-                destination = Path(repo['move_old_to']) / Path(filename)
+            elif 'weekly' in repo.keys() and weekly_path.is_dir() and not current_file_week in weeks_in_weekly:
+                destination = weekly_path / Path(filename)
+                weeks_in_weekly.append(current_file_week)
+            elif 'move_old_to' in repo.keys() and move_old_path.is_dir():
+                destination = move_old_path / Path(filename)
 
             if destination is not None:
                 if not destination.exists():
-                    logging.info("Moving {} to {}. ".format(current_file, destination))
+                    logging.info("Moving '{}' to '{}'. ".format(current_file, destination))
                     current_file = shutil.move(current_file, destination)
                 else:
-                    logging.error("Destination file already exists. ")
+                    logging.error("Cannot move '{}' to '{}'. Destination file already exists! ".format(current_file, destination))
             # delete file:
             elif 'delete_old' in repo.keys() and repo['delete_old']:
-                logging.info("Deleting {}. ".format(current_file))
+                logging.info("Deleting '{}'. ".format(current_file))
                 current_file.unlink()
                 files_deleted += 1
             else:
-                logging.info("{} would have been deleted, but 'delete_old' is not enabled. ".format(current_file))
+                logging.info("'{}' would have been deleted, but 'delete_old' is not enabled. ".format(current_file))
                 dir_size+=current_file_size
                 dir_files+=1
 
@@ -268,19 +291,19 @@ for repo in backup_repo:
             if file_num < keep:
                 dir_size+=file[2]
                 dir_files+=1
-            elif 'move_old_to' in repo.keys() and Path(repo['move_old_to']).is_dir():
-                destination = Path(repo['move_old_to']) / Path(file[1].name)
+            elif 'move_old_to' in repo.keys() and move_old_path.is_dir():
+                destination = move_old_path / Path(file[1].name)
                 if not destination.exists():
-                    logging.info("Moving {} to {}. ".format(file[1], destination))
+                    logging.info("Moving '{}' to '{}'. ".format(file[1], destination))
                     shutil.move(file[1], destination)
                 else:
-                    logging.error("Destination file already exists. ")
+                    logging.error("Cannot move '{}' to '{}'. Destination file already exists! ".format(file[1], destination))
             elif 'delete_old' in repo.keys() and repo['delete_old']:
-                logging.info("Deleting {}. ".format(file[1]))
+                logging.info("Deleting '{}'. ".format(file[1]))
                 file[1].unlink()
                 files_deleted += 1
             else:
-                logging.info("{} would have been deleted, but 'delete_old' is not enabled. ".format(file[1]))
+                logging.info("'{}' would have been deleted, but 'delete_old' is not enabled. ".format(file[1]))
                 dir_size+=file[2]
                 dir_files+=1
 
@@ -301,7 +324,7 @@ for repo in backup_repo:
         alias = str(current_dir)
 
     report_string += alias + ": " + crit_str + warn_str
-    report_string += "Directory contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
+    report_string += "Repository contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
     if dir_files > 0:
         report_string += "Newest file is {} days old. {} file{} deleted. ".format( newest_file_age.days, files_deleted, "" if files_deleted == 1 else "s")
     if compliance_violations == 0 and 'compliance_check' in repo.keys():
