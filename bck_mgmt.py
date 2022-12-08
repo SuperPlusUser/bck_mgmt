@@ -39,7 +39,7 @@ def humanize_size(num, suffix='B'):
 
 def load_file_content(file, file_size):
     file_content = None
-    logging.debug("Loading content of file '{}' for comparison or compliance checking. ".format(previous_file))
+    logging.debug("Loading content of file '{}' for comparison or compliance checking. ".format(file))
     try:
         if file_size > MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK:
             raise ValueError("File exceeds MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK")
