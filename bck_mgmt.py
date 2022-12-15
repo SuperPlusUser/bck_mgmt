@@ -328,7 +328,7 @@ for repo in backup_repo:
     report_string += alias + ": " + crit_str + warn_str
     report_string += "Repository contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
     if dir_files > 0:
-        report_string += "Newest file is {} days old. {} file{} deleted. ".format( newest_file_age.days, files_deleted, "" if files_deleted == 1 else "s")
+        report_string += "Newest file is {} day{} old. {} file{} deleted. ".format(newest_file_age.days, "" if newest_file_age.days == 1 else "s", files_deleted, "" if files_deleted == 1 else "s")
     if compliance_violations == 0 and 'compliance_check' in repo.keys():
         report_string += "No compliance violations. "
 
