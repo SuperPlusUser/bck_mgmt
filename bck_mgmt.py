@@ -10,9 +10,10 @@ import sys
 import shutil
 import re
 import difflib
+import filecmp
 #import subprocess
 
-MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1000000 # do not check files bigger than 1MB (a quite conservative limit to avoid high mem usage or to long log output)
+MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1048576 # do not check files bigger than 1MB (a quite conservative limit to avoid high mem usage or to long log output)
 
 conf_path = None # default config path can be set here
 
@@ -48,7 +49,7 @@ def load_file_content(file, file_size):
         with open(file, 'r') as f:
             file_content = f.read()
     except (ValueError, UnicodeDecodeError) as err:
-        logging.error("Content of '{}' can't be loaded: {}. Skipping compliance check and comparison for this file. Note: Compliance checks and comparisons only work for text files! ".format(file, err))
+        logging.error("Content of '{}' can't be loaded: {}. Skipping compliance check and diff log for this file. Note: Compliance check and diff log only work for text files smaller than {}! ".format(file, err, humanize_size(MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK)))
     return file_content
 
 
@@ -87,7 +88,8 @@ for repo in backup_repo:
     files_deleted = 0
     newest_file_deleted = 0
     compliance_violations = 0
-    newest_file_age = 0
+    newest_file = None
+    previous_file = None
     newest_file_content = None
     previous_file_content = None
 
@@ -150,53 +152,37 @@ for repo in backup_repo:
         logging.warning(log)
         warn_str += log
         #continue
-
-    for file_num, file in enumerate(sorted_file_list):
-
-        current_file = file[1]
-        current_file_mtime = datetime.datetime.fromtimestamp(file[0])
-        current_file_size = file[2]
-
-        # load content of previous (= 2nd newest) file if we need it for comparison later:
-        if file_num == len(sorted_file_list) - 2  and 'compare_with_previous' in repo.keys():
-            previous_file = current_file
-            previous_file_mtime = current_file_mtime
-            previous_file_content = load_file_content(current_file, current_file_size)
-            if previous_file_content is None:
-                warn_str += "Content of '{}' can't be loaded for comparison. See logfile for more details. ".format(current_file)
-
+    else: 
         # check newest file in the directory:
-        if file_num == len(sorted_file_list) - 1 :
-            newest_file = current_file
-            newest_file_mtime = current_file_mtime
-            newest_file_age = datetime.datetime.now() - newest_file_mtime
-            
-            logging.debug("'{}' is the newest file in the directory. ".format(newest_file))
+        newest_file = sorted_file_list[-1][1]
+        newest_file_size = sorted_file_list[-1][2]
+        newest_file_mtime = datetime.datetime.fromtimestamp(sorted_file_list[-1][0])
+        newest_file_age = datetime.datetime.now() - newest_file_mtime
+        
+        logging.debug("'{}' is the newest file in the directory. ".format(newest_file))
 
-            # check age of newest file:
-            if 'warn_age' in repo.keys() and newest_file_age > datetime.timedelta(days = repo['warn_age']):
-                log = "Newest file '{}' is older than defined warn_age (Age: {}, warn_age: {} day{}). ".format(
-                    current_file, newest_file_age.days, repo['warn_age'], "" if repo['warn_age'] == 1 else "s"
-                )
-                logging.warning(log)
-                warn_str += log
+        # check age of newest file:
+        if 'warn_age' in repo.keys() and newest_file_age > datetime.timedelta(days = repo['warn_age']):
+            log = "Newest file '{}' is older than defined warn_age (Age: {}, warn_age: {} day{}). ".format(
+                newest_file, newest_file_age.days, repo['warn_age'], "" if repo['warn_age'] == 1 else "s"
+            )
+            logging.warning(log)
+            warn_str += log
 
-            # check size of newest file:
-            if 'warn_bytes' in repo.keys() and current_file_size < repo['warn_bytes']:
-                log = "Newest file '{}' is smaller than defined warn_bytes (Size: {}, warn_bytes: {} bytes). ".format(
-                    current_file, humanize_size(current_file_size), repo['warn_bytes']
-                )
-                logging.warning(log)
-                warn_str += log
+        # check size of newest file:
+        if 'warn_bytes' in repo.keys() and newest_file_size < repo['warn_bytes']:
+            log = "Newest file '{}' is smaller than defined warn_bytes (Size: {}, warn_bytes: {} bytes). ".format(
+                newest_file, humanize_size(newest_file_size), repo['warn_bytes']
+            )
+            logging.warning(log)
+            warn_str += log
 
-            # get file_content if we need it for compliance_checking or comparing:
-            if 'compliance_check' in repo.keys() or ('compare_with_previous' in repo.keys() and previous_file_content is not None):
-                newest_file_content = load_file_content(current_file, current_file_size)
-                if newest_file_content is None:
-                    warn_str += "Content of '{}' can't be loaded for compliance check or comparison. See logfile for more details. ".format(current_file)
-
-            # check newest file for compliance:
-            if 'compliance_check' in repo.keys() and newest_file_content is not None:
+        # check newest file for compliance:
+        if 'compliance_check' in repo.keys():
+            newest_file_content = load_file_content(newest_file, newest_file_size)
+            if newest_file_content is None:
+                warn_str += "Content of '{}' can't be loaded for compliance checking. See log file for more details. ".format(newest_file)
+            else:
                 for check in repo['compliance_check']:
                     match = re.search(check['regex'], newest_file_content, re.MULTILINE)
                     must_not_match = True if 'must_not_match' in check.keys() and check['must_not_match'] else False
@@ -205,44 +191,56 @@ for repo in backup_repo:
                         compliance_violations += 1
                         if 'violation_message' in check.keys():
                             try: 
-                                log = "Compliance violation in file '{}': {} ".format(current_file, match.expand(check['violation_message']) if match else check['violation_message'])
+                                log = "Compliance violation in file '{}': {} ".format(newest_file, match.expand(check['violation_message']) if match else check['violation_message'])
                             except re.error as err:
                                 log = "Error: Cannot expand violation_message '{}': {}. ".format(check['violation_message'], err)
                         else:
-                            log = "Compliance violation in file '{}': Does {}match regex '{}'. ".format(current_file, "" if match else "not ", check['regex'])
+                            log = "Compliance violation in file '{}': Does {}match regex '{}'. ".format(newest_file, "" if match else "not ", check['regex'])
                         logging.critical(log)
                         crit_str += log
                     else:
                         # compliant
-                        logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(current_file, check['regex']))
+                        logging.debug("Newest file '{}' is compliant with regex '{}'. ".format(newest_file, check['regex']))
 
-            # compare newest file with previous file:
-            if 'compare_with_previous' in repo.keys() and previous_file_content is not None and newest_file_content is not None:
-                comp_settings = repo['compare_with_previous']
+    # compare newest file with previous file:
+    if 'compare_with_previous' in repo.keys() and len(sorted_file_list) >= 2:
+        comp_cfg = repo['compare_with_previous']
 
-                if previous_file_content == newest_file_content:
-                    if not 'warn_age_limit' in comp_settings.keys() or not newest_file_age > datetime.timedelta(days = comp_settings['warn_age_limit']):
-                        log = "Content of newest file '{}' equals content of previous file '{}'. ".format(newest_file, previous_file)
-                        if 'warn_if_equal' in comp_settings.keys() and comp_settings['warn_if_equal']:
-                            logging.warning(log)
-                            warn_str += log
-                        else:
-                            logging.info(log)
-                    else:
-                        logging.debug("Newest file '{}' equals previous file and is older than defined 'warn_age_limit' for comparison. ".format(newest_file))
+        previous_file = sorted_file_list[-2][1]
+        previous_file_size = sorted_file_list[-2][2]
+        previous_file_mtime = datetime.datetime.fromtimestamp(sorted_file_list[-2][0])
 
-                    if 'delete_if_equal' in comp_settings.keys() and comp_settings['delete_if_equal']:
-                        logging.info("Deleting '{}' because it is equal to previous file. ".format(newest_file))
-                        newest_file.unlink()
-                        newest_file_deleted += 1
-                        sorted_file_list.remove(file)
+        if filecmp.cmp(previous_file, newest_file, shallow=False):
+            # files are the same:
+            if not 'warn_age_limit' in comp_cfg.keys() or not newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
+                log = "Content of newest file '{}' equals content of previous file '{}'. ".format(newest_file, previous_file)
+                if 'warn_if_equal' in comp_cfg.keys() and comp_cfg['warn_if_equal']:
+                    logging.warning(log)
+                    warn_str += log
+                else:
+                    logging.info(log)
+            else:
+                logging.debug("Newest file '{}' equals previous file and is older than defined 'warn_age_limit' for comparison. ".format(newest_file))
 
-                else: # newest file is fifferent to previous
-                    if not 'warn_age_limit' in comp_settings.keys() or not newest_file_age > datetime.timedelta(days = comp_settings['warn_age_limit']):
-                        log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file, previous_file)
-                        if 'warn_if_changed' in comp_settings.keys() and comp_settings['warn_if_changed']:
-                            logging.warning(log)
-                            warn_str += log
+            if 'delete_if_equal' in comp_cfg.keys() and comp_cfg['delete_if_equal']:
+                logging.info("Deleting '{}' because it is equal to previous file. ".format(newest_file))
+                newest_file.unlink()
+                newest_file_deleted += 1
+                sorted_file_list.remove(sorted_file_list[-1])
+
+        else: # newest file is fifferent to previous
+            if not 'warn_age_limit' in comp_cfg.keys() or not newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
+                log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file, previous_file)
+                if 'warn_if_changed' in comp_cfg.keys() and comp_cfg['warn_if_changed']:
+                    logging.warning(log)
+                    warn_str += log
+                    if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and log_cfg['level'].upper() in ['DEBUG', 'INFO']:
+                        if newest_file_content is None:
+                            newest_file_content = load_file_content(newest_file, newest_file_size)
+                        if newest_file_content is not None:
+                            previous_file_content = load_file_content(previous_file, previous_file_size)
+                        
+                        if newest_file_content is not None and previous_file_content is not None:
                             diff = difflib.unified_diff(
                                 previous_file_content.splitlines(keepends=False),
                                 newest_file_content.splitlines(keepends=False),
@@ -254,9 +252,11 @@ for repo in backup_repo:
                                 n = 2) # number of lines shown before and after differences
                             logging.info('Differences:\n'+'\n'.join(diff))
                         else:
-                            logging.info(log)
-                    else:
-                        logging.debug("Newest file '{}' has changed compared to previous file and is older than defined 'warn_age_limit' for comparison. ".format(newest_file))
+                            warn_str += "Differences between '{}' and '{}' cannot be logged. See log file for details. ".format(newest_file.name, previous_file.name)
+                else:
+                    logging.info(log)
+            else:
+                logging.debug("Newest file '{}' has changed compared to previous file and is older than defined 'warn_age_limit' for comparison. ".format(newest_file))
 
     # clean up old files:
     for file_num, file in enumerate(sorted_file_list):
@@ -355,7 +355,7 @@ for repo in backup_repo:
 
     report_string += alias + ": " + crit_str + warn_str
     report_string += "Repository contains {} matching file{} with {}. ".format(dir_files, "" if dir_files == 1 else "s", humanize_size(dir_size) )
-    if dir_files > 0:
+    if newest_file:
         if newest_file_deleted:
             report_string += "Newest file was {} day{} old ".format(newest_file_age.days, "" if newest_file_age.days == 1 else "s")
             report_string += "and was deleted, because there were no changes compared to previous file. "
@@ -368,7 +368,7 @@ for repo in backup_repo:
     alias = alias.replace(" ","_")
     perfdata_array.append("{}_files={}".format(alias, dir_files))
     perfdata_array.append("{}_size={}b".format(alias, dir_size))
-    if dir_files > 0:
+    if newest_file:
         perfdata_array.append("{}_age={}{}".format(alias, newest_file_age.days, (";" + str(repo['warn_age'])) if 'warn_age' in repo.keys() else ""))
         perfdata_array.append("{}_deleted={}".format(alias, files_deleted + newest_file_deleted))
 

@@ -24,13 +24,13 @@ backup_repository:
         directory: /data/backups/test_repo1/yearly/
         keep: 10                # how many yearly backups you want to keep
 
-  - directory: /data/backups/test_repo2
+  - directory: /data/backups/test_repo2 # minimal example
     alias: Test-Repo 2
     pattern: "**/Test2*.bck"    # "**" means "this directory and all subdirectories, recursively". Use with caution!
     keep: 10
     delete_old: true
 
-  - directory: /data/backups/config_archive1
+  - directory: /data/backups/config_archive1 # example repo with compliance checks and comparison
     pattern: "*.cfg"
     keep: 10
     warn_age: 1
@@ -45,11 +45,12 @@ backup_repository:
       - regex: '^ip access-list 1 (?!1\.2\.3\.4$|2\.3\.4\.5$)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
         must_not_match: true
         violation_message: 'Unallowed IP \1 in ACL 1!'
-    compare_with_previous:      # optional: compare newest file with previous file. Only works for text files smaller than 1MB (like config files etc.)
-        warn_if_changed: true   # warn if newest file changed compared to previous. Differeneces are logged at INFO level. Log will become large if there are many changes!
-        warn_if_equal: false    # warn if newest file content equals previous file content.
+    compare_with_previous:      # optional: compare newest file with previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated!
+        warn_if_changed: true   # warn if newest file changed compared to previous one.
+        warn_if_equal: false    # warn if newest file equals previous one.
         warn_age_limit: 2       # don't warn about changes if newest file is older than the defined age in days.
-        delete_if_equal: true   # only keep the newest file if it differs from the previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated!
+        log_diff: true          # log the differences between the two newest files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
+        delete_if_equal: true   # only keep the newest file if it differs from the previous one, otherwise delete it. 
 
 # - directory:   ...            # you can add as many repository directories here as you want
 #   pattern: ...
