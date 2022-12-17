@@ -31,6 +31,7 @@ backup_repository:
     delete_old: true
 
   - directory: /data/backups/config_archive1 # example repo with compliance checks and comparison
+    alias: config archive 1
     pattern: "*.cfg"
     keep: 10
     warn_age: 1
