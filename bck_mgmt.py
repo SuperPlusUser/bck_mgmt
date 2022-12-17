@@ -29,8 +29,13 @@ perfdata_array = []
 warn_flag = False
 crit_flag = False
 
-usage = """usage: {} -c <config-file> 
-See example config for more information.""".format(sys.argv[0])
+usage = """Usage:
+  {} -c <config> [-d] [-h]
+
+Options:
+  -c, --conf <config>  specify path to YAML config file. See example config for more information.
+  -d, --debug          overwrites log config to DEBUG and STDOUT
+  -h, --help           display this help and exit""".format(sys.argv[0])
 
 
 def humanize_size(num, suffix='B'):
@@ -62,7 +67,7 @@ for arg_num, arg in enumerate(sys.argv[1:], start=1):
         conf_path = sys.argv[arg_num+1]
 
 if not conf_path or not Path(conf_path).is_file():
-    print(usage)
+    print("ERROR: No config file specified or config path not found.\n\n" + usage)
     sys.exit(3)
 
 # Parse config file:
@@ -72,8 +77,10 @@ with open(conf_path, 'r') as stream:
 log_cfg = parsed_config['logging']
 backup_repo = parsed_config['backup_repository']
 
-
-logging.basicConfig(filename=log_cfg['file'] if 'file' in  log_cfg.keys() else None, level=log_cfg['level'].upper(), format='%(asctime)s %(levelname)s: %(message)s')
+if "-d" in sys.argv[1:] or "--debug" in sys.argv[1:]:
+    logging.basicConfig(filename=None, level="DEBUG", format='%(asctime)s %(levelname)s: %(message)s')
+else:
+    logging.basicConfig(filename=log_cfg['file'] if 'file' in log_cfg.keys() else None, level=log_cfg['level'].upper(), format='%(asctime)s %(levelname)s: %(message)s')
 
 logging.debug("Parsed Config: \n{}".format(parsed_config))
 
