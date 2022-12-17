@@ -49,9 +49,9 @@ backup_repository:
     compare_with_previous:      # optional: compare newest file with previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated!
         warn_if_changed: true   # warn if newest file changed compared to previous one.
         warn_if_equal: false    # warn if newest file equals previous one.
-        warn_age_limit: 2       # don't warn about changes if newest file is older than the defined age in days.
-        log_diff: true          # log the differences between the two newest files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
-        delete_if_equal: true   # only keep the newest file if it differs from the previous one, otherwise delete it. 
+        log_diff: true          # log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
+        delete_if_equal: true   # only keep the newest file if it differs from the previous one, otherwise delete it.
+        warn_age_limit: 1       # optional: don't warn about changes or log differences if newest file is older than the defined age in days.
 
 # - directory:   ...            # you can add as many repository directories here as you want
 #   pattern: ...

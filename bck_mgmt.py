@@ -246,27 +246,27 @@ for repo in backup_repo:
                 if 'warn_if_changed' in comp_cfg.keys() and comp_cfg['warn_if_changed']:
                     logging.warning(alias + ": " + log)
                     warn_str += log
-                    if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and log_cfg['level'].upper() in ['DEBUG', 'INFO']:
-                        if newest_file_content is None:
-                            newest_file_content = load_file_content(newest_file, newest_file_size)
-                        if newest_file_content is not None:
-                            previous_file_content = load_file_content(previous_file, previous_file_size)
-                        
-                        if newest_file_content is not None and previous_file_content is not None:
-                            diff = difflib.unified_diff(
-                                previous_file_content.splitlines(keepends=False),
-                                newest_file_content.splitlines(keepends=False),
-                                fromfile=previous_file.name,
-                                tofile=newest_file.name,
-                                fromfiledate=previous_file_mtime.isoformat(),
-                                tofiledate=newest_file_mtime.isoformat(),
-                                lineterm='',
-                                n = 2) # number of lines shown before and after differences
-                            logging.info('Differences:\n'+'\n'.join(diff))
-                        else:
-                            warn_str += "Differences between '{}' and '{}' cannot be logged. See log file for details. ".format(newest_file.name, previous_file.name)
                 else:
                     logging.info(alias + ": " + log)
+                if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and log_cfg['level'].upper() in ['DEBUG', 'INFO']:
+                    if newest_file_content is None:
+                        newest_file_content = load_file_content(newest_file, newest_file_size)
+                    if newest_file_content is not None:
+                        previous_file_content = load_file_content(previous_file, previous_file_size)
+                    
+                    if newest_file_content is not None and previous_file_content is not None:
+                        diff = difflib.unified_diff(
+                            previous_file_content.splitlines(keepends=False),
+                            newest_file_content.splitlines(keepends=False),
+                            fromfile=previous_file.name,
+                            tofile=newest_file.name,
+                            fromfiledate=previous_file_mtime.isoformat(),
+                            tofiledate=newest_file_mtime.isoformat(),
+                            lineterm='',
+                            n = 2) # number of lines shown before and after differences
+                        logging.info('Differences:\n'+'\n'.join(diff))
+                    else:
+                        warn_str += "Differences between '{}' and '{}' cannot be logged. See log file for details. ".format(newest_file.name, previous_file.name)
             else:
                 logging.debug("{}: Newest file '{}' has changed compared to previous file and is older than defined 'warn_age_limit' for comparison. ".format(alias, newest_file.name))
 
