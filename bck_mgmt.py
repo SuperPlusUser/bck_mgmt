@@ -248,7 +248,7 @@ for repo in backup_repo:
                     warn_str += log
                 else:
                     logging.info(alias + ": " + log)
-                if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and log_cfg['level'].upper() in ['DEBUG', 'INFO']:
+                if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and logging.getLogger().level <= 20:
                     if newest_file_content is None:
                         newest_file_content = load_file_content(newest_file, newest_file_size)
                     if newest_file_content is not None:
