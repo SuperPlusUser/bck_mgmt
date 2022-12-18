@@ -58,6 +58,7 @@ backup_repository:
 #   ...
 
 logging:
-    level: info                 # possible values: debug | info | warning | error
+    level: info                 # possible values: debug, info, warning, error, critical. 
+                                # "warning" is useful if you run the script via cron and only want to be notified if there is a problem. Otherwise "info" is usually a good choice.
     file: /var/log/bck_mgmt.log # log file destination. If omitted, log will go to stdout.
 

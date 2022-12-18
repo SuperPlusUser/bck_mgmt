@@ -170,7 +170,7 @@ for repo in backup_repo:
         newest_file_size = sorted_file_list[-1][2]
         newest_file_mtime = datetime.datetime.fromtimestamp(sorted_file_list[-1][0])
         newest_file_age = datetime.datetime.now() - newest_file_mtime
-        
+
         logging.debug("{}: '{}' is the newest file in the directory. ".format(alias, newest_file))
 
         # check age of newest file:
@@ -240,7 +240,7 @@ for repo in backup_repo:
                 newest_file_deleted += 1
                 sorted_file_list.remove(sorted_file_list[-1])
 
-        else: # newest file is fifferent to previous
+        else: # newest file is different to previous
             if not 'warn_age_limit' in comp_cfg.keys() or not newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
                 log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file.name, previous_file.name)
                 if 'warn_if_changed' in comp_cfg.keys() and comp_cfg['warn_if_changed']:
@@ -278,7 +278,7 @@ for repo in backup_repo:
         current_file_week = current_file_mtime.strftime("%Y-%W")
         current_file_month = current_file_mtime.strftime("%Y-%m")
         current_file_year = current_file_mtime.strftime("%Y")
-        
+
         if 'keep' in repo.keys() and ( len(sorted_file_list) - file_num ) > int(repo['keep']):
             # move into subdirectories:
             destination = None
