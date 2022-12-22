@@ -138,7 +138,7 @@ for repo in backup_repo:
 
     if 'yearly' in repo.keys():
         yearly_path = Path(repo['yearly']['directory'])
-        if not weekly_path.is_dir():
+        if not yearly_path.is_dir():
             log = "Yearly directory '{}' does not exist. Please create the directory. ".format(yearly_path)
             logging.error(alias + ": " + log)
             crit_str += log
