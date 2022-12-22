@@ -1,6 +1,6 @@
 # Example config file for backup management script "bck_mgmt"
 
-# Version 1.1 (17.12.2022)
+# Version 1.2 (22.12.2022)
 
 backup_repository:
 
@@ -52,6 +52,8 @@ backup_repository:
         log_diff: true          # log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
         delete_if_equal: true   # only keep the newest file if it differs from the previous one, otherwise delete it.
         warn_age_limit: 1       # optional: don't warn about changes or log differences if newest file is older than the defined age in days.
+        ignore_regex: '^: saved at .*' # optional: ignore the parts of the file which match the given regex. No warning is issued for changes in ignored parts. Only works for text files smaller than 1MB.
+        delete_if_ignored: true # optional: also delete newest file if only parts changed, which are ignored by the ignore_regex. Has no effect if delete_if_equal is not set to true.
 
 # - directory:   ...            # you can add as many repository directories here as you want
 #   pattern: ...

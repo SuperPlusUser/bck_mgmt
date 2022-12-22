@@ -7,7 +7,7 @@ This script allows you to automatically clean up and monitor your backup reposit
 * define custom backup retention policy: 
   * keep X most recent backup files
   * keep X weekly, monthly and yearly backup files
-* check if newest backup file is to old or to small (which could indicate a transmission problem, for example)
+* check if newest backup file is too old or too small (which could indicate a transmission problem, for example)
 * compliance checks: check if the newest backup file matches specified regular expressions and define custom violation messages (only for text files)
 * compare newest file with previous file and warn if there are changes (or not)
 * log differences between the 2 most recent files (only for text files)
@@ -34,7 +34,7 @@ Options:
 
 ## How does it work?
 
-You need to define your backup directories in a YAML config file. The supplied sample config shows how to do that. For each directory the script will create a sorted list of all backup files matching the configured pattern. The files are sorted by modification time. If multiple files have the same modification time, they are sorted alphabetically. The script will then check the age and size of the most recent file. If it is a text file, compliance checks will also be performed according to the defined regular expressions.
+You need to define your backup directories in a YAML config file. The supplied sample config shows how to do that. For each directory, the script will create a sorted list of all backup files matching the configured pattern. The files are sorted by modification time. If multiple files have the same modification time, they are sorted alphabetically. The script will then check the age and size of the most recent file. If it is a text file, compliance checks will also be performed according to the defined regular expressions.
 
 If there are more matching files in the directory than the defined "keep" value, the script will then move the excess files to the configured yearly | monthly | weekly directories. If they already include a file of the same year | month | week, the excess files will be deleted instead (if delete_old = true).
 The script will not create a copy of a file. For example, it will not move the same file to the monthly and weekly directory, but only to the monthly. The next one from the same month will then be moved to the weekly directory.

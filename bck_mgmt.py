@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Version 1.1 (17.12.2022)
+# Version 1.2 (22.12.2022)
 
 import yaml
 from pathlib import Path
@@ -196,7 +196,7 @@ for repo in backup_repo:
                 warn_str += "Content of '{}' can't be loaded for compliance checking. See log file for more details. ".format(newest_file.name)
             else:
                 for check in repo['compliance_check']:
-                    match = re.search(check['regex'], newest_file_content, re.MULTILINE)
+                    match = re.search(check['regex'], newest_file_content, flags=re.MULTILINE)
                     must_not_match = True if 'must_not_match' in check.keys() and check['must_not_match'] else False
                     if (match and must_not_match) or (not match and not must_not_match):
                         # compliance violation:
@@ -222,36 +222,60 @@ for repo in backup_repo:
         previous_file_size = sorted_file_list[-2][2]
         previous_file_mtime = datetime.datetime.fromtimestamp(sorted_file_list[-2][0])
 
+        ignore_changes = False
+
         if filecmp.cmp(previous_file, newest_file, shallow=False):
             # files are the same:
-            if not 'warn_age_limit' in comp_cfg.keys() or not newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
+            file_changed = False
+            if 'warn_age_limit' in comp_cfg.keys() and newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
+                logging.debug("{}: Newest file '{}' equals previous file and is older than defined 'warn_age_limit' for comparison. ".format(alias, newest_file.name))
+            else:
                 log = "Content of newest file '{}' equals content of previous file '{}'. ".format(newest_file.name, previous_file.name)
                 if 'warn_if_equal' in comp_cfg.keys() and comp_cfg['warn_if_equal']:
                     logging.warning(alias + ": " + log)
                     warn_str += log
                 else:
                     logging.info(alias + ": " + log)
+
+        else: # newest file is different than previous:
+            file_changed = True
+            if 'warn_age_limit' in comp_cfg.keys() and newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
+                logging.debug("{}: Newest file '{}' has changed compared to previous file and is older than defined 'warn_age_limit' for comparison. ".format(alias, newest_file.name))
             else:
-                logging.debug("{}: Newest file '{}' equals previous file and is older than defined 'warn_age_limit' for comparison. ".format(alias, newest_file.name))
-
-            if 'delete_if_equal' in comp_cfg.keys() and comp_cfg['delete_if_equal']:
-                logging.info("{}: Deleting '{}' because it is equal to previous file. ".format(alias, newest_file.name))
-                newest_file.unlink()
-                newest_file_deleted += 1
-                sorted_file_list.remove(sorted_file_list[-1])
-
-        else: # newest file is different to previous
-            if not 'warn_age_limit' in comp_cfg.keys() or not newest_file_age > datetime.timedelta(days = comp_cfg['warn_age_limit']):
                 log = "Newest file '{}' has changed compared to previous file '{}'. ".format(newest_file.name, previous_file.name)
-                if 'warn_if_changed' in comp_cfg.keys() and comp_cfg['warn_if_changed']:
-                    logging.warning(alias + ": " + log)
-                    warn_str += log
-                else:
-                    logging.info(alias + ": " + log)
-                if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and logging.getLogger().level <= 20:
+                
+                # check if changes are ignored by 'ignore_regex':
+                if 'ignore_regex' in comp_cfg.keys():
                     if newest_file_content is None:
                         newest_file_content = load_file_content(newest_file, newest_file_size)
-                    if newest_file_content is not None:
+                    if newest_file_content is not None and previous_file_content is None:
+                        previous_file_content = load_file_content(previous_file, previous_file_size)
+                    
+                    if newest_file_content is not None and previous_file_content is not None:
+                        newest_file_content_reduced = re.sub(comp_cfg['ignore_regex'], '[IGNORED]', newest_file_content, flags=re.MULTILINE)
+                        previous_file_content_reduced = re.sub(comp_cfg['ignore_regex'], '[IGNORED]', previous_file_content, flags=re.MULTILINE)
+                        logging.debug("{}: previous file content after applying 'ignore_regex':\n{}\nnewest file content after applying 'ignore_regex':\n{}".format(
+                            alias, previous_file_content_reduced, newest_file_content_reduced))
+                        if previous_file_content_reduced == newest_file_content_reduced:
+                            ignore_changes = True
+                    else:
+                        log_err = "'ignore_regex' for comparison can't be applied. "
+                        warn_str += (log_err + "See log file for details. ")
+                        logging.error(alias + ": " + log_err)
+                
+                if 'warn_if_changed' in comp_cfg.keys() and comp_cfg['warn_if_changed'] and not ignore_changes:
+                    logging.warning(alias + ": " + log)
+                    warn_str += log
+                elif ignore_changes:
+                    logging.info(alias + ": " + log + "All changes are ignored because of 'ignore_regex'. ")
+                else:
+                    logging.info(alias + ": " + log)
+
+                # log diff:
+                if 'log_diff' in comp_cfg and comp_cfg['log_diff'] and logging.getLogger().level <= 20 and not ignore_changes:
+                    if newest_file_content is None:
+                        newest_file_content = load_file_content(newest_file, newest_file_size)
+                    if newest_file_content is not None and previous_file_content is None:
                         previous_file_content = load_file_content(previous_file, previous_file_size)
                     
                     if newest_file_content is not None and previous_file_content is not None:
@@ -266,9 +290,20 @@ for repo in backup_repo:
                             n = 2) # number of lines shown before and after differences
                         logging.info('Differences:\n'+'\n'.join(diff))
                     else:
-                        warn_str += "Differences between '{}' and '{}' cannot be logged. See log file for details. ".format(newest_file.name, previous_file.name)
+                        log_err = "Differences between '{}' and '{}' cannot be logged. ".format(newest_file.name, previous_file.name)
+                        warn_str += (log_err + "See log file for details. ")
+                        logging.error(alias + ": " + log_err)
+
+        # delete newest file if delete_if_equal is set and there are no changes or the changes are ignored because of ignore_regex
+        if 'delete_if_equal' in comp_cfg.keys() and comp_cfg['delete_if_equal'] and ( not file_changed or (ignore_changes and 'delete_if_ignored' in comp_cfg.keys() and comp_cfg['delete_if_ignored']) ):
+            if file_changed:
+                logging.info("{}: Deleting '{}' because all changes are ignored by 'ignore_regex' and 'delete_if_ignored' is set to true. ".format(alias, newest_file.name))
             else:
-                logging.debug("{}: Newest file '{}' has changed compared to previous file and is older than defined 'warn_age_limit' for comparison. ".format(alias, newest_file.name))
+                logging.info("{}: Deleting '{}' because it is the same as the previous file. ".format(alias, newest_file.name))
+            newest_file.unlink()
+            newest_file_deleted += 1
+            sorted_file_list.remove(sorted_file_list[-1])
+
 
     # clean up old files:
     for file_num, file in enumerate(sorted_file_list):
@@ -365,7 +400,7 @@ for repo in backup_repo:
     if newest_file:
         if newest_file_deleted:
             report_string += "Newest file was {} day{} old ".format(newest_file_age.days, "" if newest_file_age.days == 1 else "s")
-            report_string += "and was deleted, because there were no changes compared to previous file. "
+            report_string += "and was deleted, because there were no relevant changes. "
         else:
             report_string += "Newest file is {} day{} old. ".format(newest_file_age.days, "" if newest_file_age.days == 1 else "s")
     report_string += "{} old file{} deleted. ".format(files_deleted, "" if files_deleted == 1 else "s")
