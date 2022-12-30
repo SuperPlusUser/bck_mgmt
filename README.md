@@ -19,7 +19,7 @@ This script allows you to automatically clean up and monitor your backup reposit
 
 ```
 Usage:
-  {} -c <config> [-d] [-h]
+  bck_mgmt.py -c <config> [-d] [-h]
 
 Options:
   -c, --conf <config>  specify path to YAML config file. See example config for more information.
