@@ -1,6 +1,6 @@
 # Example config file for backup management script "bck_mgmt"
 
-# Version 1.2 (22.12.2022)
+# Version 1.3 (01.09.2023)
 
 backup_repository:
 
@@ -32,6 +32,11 @@ backup_repository:
 
   - directory: /data/backups/config_archive1 # example repo with compliance checks and comparison
     alias: config archive 1
+    pull:                       # Pull backup using custom command
+        command: 'scp backupuseruser@192.168.177.10:running-config /data/backups/config_archive1/running-config_%Y-%m-%d.cfg'
+                                # % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
+        shell: false            # execute command in shell
+        timeout: 20             # timeout in seconds
     pattern: "*.cfg"
     keep: 10
     warn_age: 1
@@ -64,3 +69,12 @@ logging:
                                 # "warning" is useful if you run the script via cron and only want to be notified if there is a problem. Otherwise "info" is usually a good choice.
     file: /var/log/bck_mgmt.log # log file destination. If omitted, log will go to stdout.
 
+reporting:
+    command: 'echo {report} | mail -s "Backup Management Script exited with status {exitstatus} at %d.%m.%Y %H:%M:%S" your-mail@example.com' # reporting command
+                                # the following variables are available: 
+                                # {exitcode} (integer): 0 = ok, 1 = warning, 2 = critical
+                                # {exitstatus} (string): "OK", "WARNING" or "CRITICAL"
+                                # {report} (string): multiline execution report and summary of all repositories
+                                # {perfdata} (string): performance data in Nagios compatible format
+                                # % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
+    shell: True                 # execute command in Shell

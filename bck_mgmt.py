@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-# Version 1.2 (22.12.2022)
+# Version 1.3 (01.09.2023)
 
-import yaml
+import yaml # requires pyyaml (pip install pyyaml)
 from pathlib import Path
 import datetime
 import logging
@@ -11,7 +11,8 @@ import shutil
 import re
 import difflib
 import filecmp
-#import subprocess
+import subprocess
+import shlex
 
 MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1048576 # do not check files bigger than 1MB (a quite conservative limit to avoid high mem usage or to long log output)
 
@@ -112,6 +113,27 @@ for repo in backup_repo:
         crit_str += "Directory '{}' not found. ".format(current_dir)
         logging.error(alias + ": " + crit_str)
     else:
+        # pull backup if pull command is given:
+        if 'pull' in repo.keys() and 'command' in repo['pull'].keys():
+            command = datetime.datetime.now().strftime(repo['pull']['command'])
+            logging.debug("{}: Executing pull command: {}".format(alias, command))
+            if 'shell' in repo['pull'].keys() and repo['pull']['shell']:
+                shell = True
+            else:
+                shell = False
+                command = shlex.split(command)
+            try:
+                command_output = subprocess.run(command,
+                    shell = shell, 
+                    timeout = repo['pull']['timeout'] if 'timeout' in repo['pull'].keys() else None,
+                    capture_output = True)
+                if command_output.stderr:
+                    logging.error("{}: An error occured during execution of pull command: {}".format(alias, command_output.stderr.decode(errors='ignore')))
+                if command_output.stdout:
+                    logging.info("{}: Output of pull command: {}".format(alias, command_output.stdout.decode(errors='ignore')))
+            except subprocess.TimeoutExpired:
+                logging.error("{}: Timeout for pull command expired.".format(alias))
+
         matching_files = current_dir.glob(repo['pattern'])
         sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=False)
         logging.debug("{}: Found {} matching backup files in Directory '{}'. ".format(alias, len(sorted_file_list), current_dir))
@@ -419,9 +441,9 @@ for repo in backup_repo:
     total_files+=dir_files
     total_files_deleted+=(files_deleted + newest_file_deleted)
 
-    # uncomment the following lines, if you want all critical and warning strings of individual repositories to also be displayed in the report summary (first line of report string)
-    #summary_crit_str += crit_str
-    #summary_warn_str += warn_str
+    # comment out the following 2 lines, if you dont't want all critical and warning strings of individual repositories to also be displayed in the report summary (first line of report string)
+    summary_crit_str += crit_str
+    summary_warn_str += warn_str
 
 
 report_summary = summary_crit_str + summary_warn_str
@@ -444,10 +466,39 @@ if crit_flag: exitcode = 2
 elif warn_flag: exitcode = 1
 else: exitcode = 0
 
+exitstatus_string = ["OK","WARNING","CRITICAL"][exitcode]
+
+# Reporting:
+
 # report_string now contains all the relevant information in human readable form which can be sent by mail or to a monitoring system.
-# perfdata_array contains statistics in an array. perfdata_string contains the same data in a string seperated by spaces.
-# for example you can call your own script which processes the data like this:
-#subprocess.run(['process_check_result.sh', '-e', str(exitcode), '-o', report_string.replace("\n", "\\n") , '-d', perfdata_string ], check=True )
+# perfdata_array contains statistics in an array. 
+# perfdata_string contains the same data in a string seperated by spaces.
+
+if 'reporting' in parsed_config.keys():
+    reporting_config = parsed_config['reporting']
+    if 'command' in reporting_config.keys():
+        # escape variables:
+        escaped_report_string     = shlex.quote(report_string)
+        escaped_perfdata_string   = shlex.quote(perfdata_string)
+        # replace variables in command:
+        command = datetime.datetime.now().strftime(reporting_config['command']).format(
+            exitcode   = str(exitcode),
+            exitstatus = exitstatus_string,
+            report     = escaped_report_string, 
+            perfdata   = escaped_perfdata_string)
+        if 'shell' in reporting_config.keys() and reporting_config['shell']:
+            shell = True
+        else:
+            shell = False
+            command = shlex.split(command)
+        logging.debug("Executing reporting command: {}".format(command))
+        command_output = subprocess.run(command, 
+            shell = shell, 
+            capture_output = True)
+        if command_output.stderr:
+            logging.error("An error occured during execution of reporting command: {}".format(command_output.stderr.decode(errors='ignore')))
+        if command_output.stdout:
+            logging.info("Output of reporting command: {}".format(command_output.stdout.decode(errors='ignore')))
 
 logging.info(" ===== Execution Report ===== \n{}\n ".format(report_string))
 logging.debug(" ========= Perfdata ========= \n{}\n ".format(perfdata_string))
