@@ -1,10 +1,23 @@
 # Example config file for backup management script "bck_mgmt"
 
-# Version 1.3 (01.09.2023)
+# Version 1.4 (19.09.2023)
+
+defaults:                       # This section allows you to set default values for all directories in the backup repo. Entries of individual directories have priority over the respective entries in defaults section.
+                                # List items like the rules under 'compliance_check' will be combined to one list including all items from default section and indivividual directory config.
+    warn_age: 10
+    warn_bytes: 100
+    pull:
+        timeout: 30
+    weekly:
+        keep: 4
+    monthly:
+        keep: 12
+    yearly:
+        keep: 10
 
 backup_repository:
 
-  - directory: /data/backups/test_repo1 # defines the base directory of your backup repository
+  - directory: /data/backups/test_repo1 # defines the base directory of your backup repository. Should be an absolute path.
     alias: Test-Repo 1          # optional: defines an alias for this repo which will be used in logs and reports etc.
     pattern: "*.bck"            # defines the pattern of the backup files you want to process. Use "*" as wildcard and put the entire expression into quotation marks.
     keep: 3                     # defines how many backup files you want to keep in the base directory
@@ -18,11 +31,11 @@ backup_repository:
         directory: /data/backups/test_repo1/weekly/
         keep: 1                 # how many weekly backups you want to keep
     monthly:                    # optional: defines a directory to keep monthly backups. Directory must already exist.
-        directory: /data/backups/test_repo1/monthly/
-        keep: 12                # how many monthly backups you want to keep
+        directory: monthly      # if no absolute path is given, it will be interpreted as realtive to the base directory. In this example the resulting absolute path is '/data/backups/test_repo1/monthly'
+        keep: 6                 # how many monthly backups you want to keep
     yearly:                     # optional: defines a directory to keep yearly backups. Directory must already exist.
-        directory: /data/backups/test_repo1/yearly/
-        keep: 10                # how many yearly backups you want to keep
+        directory: yearly
+        keep: 5                 # how many yearly backups you want to keep
 
   - directory: /data/backups/test_repo2 # minimal example
     alias: Test-Repo 2
@@ -33,7 +46,7 @@ backup_repository:
   - directory: /data/backups/config_archive1 # example repo with compliance checks and comparison
     alias: config archive 1
     pull:                       # Pull backup using custom command
-        command: 'scp backupuseruser@192.168.177.10:running-config /data/backups/config_archive1/running-config_%Y-%m-%d.cfg'
+        command: 'scp backupuseruser@192.168.177.10:running-config running-config_%Y-%m-%d.cfg'
                                 # % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
         shell: false            # execute command in shell
         timeout: 20             # timeout in seconds

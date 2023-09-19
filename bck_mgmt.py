@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Version 1.3 (01.09.2023)
+VERSION = "1.4 (19.09.2023)"
 
 import yaml # requires pyyaml (pip install pyyaml)
 from pathlib import Path
@@ -36,7 +36,8 @@ usage = """Usage:
 Options:
   -c, --conf <config>  specify path to YAML config file. See example config for more information.
   -d, --debug          overwrites log config to DEBUG and STDOUT
-  -h, --help           display this help and exit""".format(sys.argv[0])
+  -h, --help           display this help and exit
+  -v, --version        display version and exit""".format(sys.argv[0])
 
 
 def humanize_size(num, suffix='B'):
@@ -63,6 +64,9 @@ def load_file_content(file, file_size):
 for arg_num, arg in enumerate(sys.argv[1:], start=1):
     if arg == "-h" or arg == "--help":
         print(usage)
+        sys.exit(0)
+    if arg == "-v" or arg == "--version":
+        print("bck_mgmt.py version {}".format(VERSION))
         sys.exit(0)
     elif (arg == "-c" or arg == "--conf") and arg_num < len(sys.argv[1:]):
         conf_path = sys.argv[arg_num+1]
@@ -109,6 +113,20 @@ for repo in backup_repo:
     else:
         alias = str(current_dir)
 
+    # load defaults for config entries not defined for current dir:
+    if 'defaults' in parsed_config.keys() and type(parsed_config['defaults']) is dict:
+        for key in parsed_config['defaults'].keys():
+            if not key in repo.keys():
+                repo[key] =  parsed_config['defaults'][key]
+            # merge dicts (like 'weekly:' etc.): 
+            elif type(repo[key]) is dict and type(parsed_config['defaults'][key]) is dict:
+                repo[key] = {**parsed_config['defaults'][key], **repo[key]}
+            # combine lists (only used for compliance checks at the moment):
+            # if the following two lines are commented out, lists defined for one directory will overwrite lists defined in defaults section:
+            elif type(repo[key]) is list and type(parsed_config['defaults'][key]) is list:
+                repo[key] = parsed_config['defaults'][key] + repo[key]
+        logging.debug("{}: Resulting merged config:\n{}".format(alias, repo))
+
     if not current_dir.is_dir():
         crit_str += "Directory '{}' not found. ".format(current_dir)
         logging.error(alias + ": " + crit_str)
@@ -126,7 +144,8 @@ for repo in backup_repo:
                 command_output = subprocess.run(command,
                     shell = shell, 
                     timeout = repo['pull']['timeout'] if 'timeout' in repo['pull'].keys() else None,
-                    capture_output = True)
+                    capture_output = True,
+                    cwd = current_dir)
                 if command_output.stderr:
                     logging.error("{}: An error occured during execution of pull command: {}".format(alias, command_output.stderr.decode(errors='ignore')))
                 if command_output.stdout:
@@ -138,38 +157,41 @@ for repo in backup_repo:
         sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=False)
         logging.debug("{}: Found {} matching backup files in Directory '{}'. ".format(alias, len(sorted_file_list), current_dir))
 
-    if 'weekly' in repo.keys():
-        weekly_path = Path(repo['weekly']['directory'])
+    if 'weekly' in repo.keys() and 'directory' in repo['weekly'].keys():
+        weekly_path = current_dir / Path(repo['weekly']['directory']) # if weekly path is absolute already, current_dir will be ignored
         if not weekly_path.is_dir():
             log = "Weekly directory '{}' does not exist. Please create the directory. ".format(weekly_path)
             logging.error(alias + ": " + log)
             crit_str += log
         else:
             weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%W") for f in weekly_path.glob(repo['pattern']))
+            logging.debug("{}: Found weekly directory '{}' with files from the following weeks: {}. ".format(alias, weekly_path, weeks_in_weekly))
             subdirs.append('weekly')
 
-    if 'monthly' in repo.keys():
-        monthly_path = Path(repo['monthly']['directory'])
+    if 'monthly' in repo.keys() and 'directory' in repo['monthly'].keys():
+        monthly_path = current_dir / Path(repo['monthly']['directory'])
         if not monthly_path.is_dir():
             log = "Monthly directory '{}' does not exist. Please create the directory. ".format(monthly_path)
             logging.error(alias + ": " + log)
             crit_str += log
         else:
             months_in_monthly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m") for f in monthly_path.glob(repo['pattern']))
+            logging.debug("{}: Found monthly directory '{}' with files from the following months: {}. ".format(alias, monthly_path, months_in_monthly))
             subdirs.append('monthly')
 
-    if 'yearly' in repo.keys():
-        yearly_path = Path(repo['yearly']['directory'])
+    if 'yearly' in repo.keys() and 'directory' in repo['yearly'].keys():
+        yearly_path = current_dir / Path(repo['yearly']['directory'])
         if not yearly_path.is_dir():
             log = "Yearly directory '{}' does not exist. Please create the directory. ".format(yearly_path)
             logging.error(alias + ": " + log)
             crit_str += log
         else:
             years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y") for f in yearly_path.glob(repo['pattern']))
+            logging.debug("{}: Found yearly directory '{}' with files from the following years: {}. ".format(alias, yearly_path, years_in_yearly))
             subdirs.append('yearly')
 
     if 'move_old_to' in repo.keys():
-        move_old_path = Path(repo['move_old_to'])
+        move_old_path = current_dir / Path(repo['move_old_to'])
         if not move_old_path.is_dir():
             log = "'move_old_to' directory '{}' does not exist. Please create the directory. ".format(move_old_path)
             logging.error(alias + ": " + log)
@@ -381,11 +403,12 @@ for repo in backup_repo:
 
     # clean up subdirectories:
     for i in subdirs:
-        subdir = Path(repo[i]['directory'])
+        subdir = current_dir / Path(repo[i]['directory'])
         keep = int(repo[i]['keep'])
 
         matching_files = subdir.glob(repo['pattern'])
         sorted_file_list = sorted(((file.stat().st_mtime, file, file.stat().st_size) for file in matching_files if file.is_file()), reverse=True)
+        logging.debug("{}: Found {} matching backup files in {} subdirectory. ".format(alias, len(sorted_file_list), i))
         for file_num, file in enumerate(sorted_file_list):
             if file_num < keep:
                 dir_size+=file[2]
