@@ -1,9 +1,12 @@
 # Example config file for backup management script "bck_mgmt"
 
-# Version 1.4 (19.09.2023)
+# Version 1.5 (15.10.2023)
 
-defaults:                       # This section allows you to set default values for all directories in the backup repo. Entries of individual directories have priority over the respective entries in defaults section.
-                                # List items like the rules under 'compliance_check' will be combined to one list including all items from default section and indivividual directory config.
+defaults:
+    # This section allows you to set default values for all directories in the backup repo. 
+    # Entries of individual directories have priority over the respective entries in defaults section.
+    # List items like the rules under 'compliance_check' will be combined to one list including all items 
+    # from default section and indivividual directory config.
     warn_age: 10
     warn_bytes: 100
     pull:
@@ -19,19 +22,25 @@ backup_repository:
 
   - directory: /data/backups/test_repo1 # defines the base directory of your backup repository. Should be an absolute path.
     alias: Test-Repo 1          # optional: defines an alias for this repo which will be used in logs and reports etc.
-    pattern: "*.bck"            # defines the pattern of the backup files you want to process. Use "*" as wildcard and put the entire expression into quotation marks.
+    pattern: "*.bck"            # defines the pattern of the backup files you want to process. 
+                                # Use "*" as wildcard and put the entire expression into quotation marks.
     keep: 3                     # defines how many backup files you want to keep in the base directory
-    warn_age: 7                 # optional: the script will output a warning, if the newest file in the repo is older than the defined value in days. If you expect daily backups, set this to 1.
+    warn_age: 7                 # optional: the script will output a warning, if the newest file in the repo is older than the defined value in days. 
+                                # If you expect daily backups, set this to 1.
     warn_bytes: 1000            # optional: the script will output a warning, if the newest file in the repo is smaller than the defined value in bytes.
-    delete_old: false           # if set to false or omitted, the script will not actually delete files but log the files, which would have been deleted. Usefull for tests. 
+    delete_old: false           # if set to false or omitted, the script will not actually delete files but log the files, 
+                                # which would have been deleted. Usefull for tests. 
     move_old_to: /data/backups/test_repo1/archive/ # optional: move files to this directory instead of deleting them. Overwrites 'delete_old'.
-    rename_moved_files: 'moved-%Y-%m-%d_{}' # optional: rename files when they are moved. '{}' will be replaced by the original filename. Make sure the given 'pattern' still matches after renaming!
-                                # % format codes can be used to add date and time. %Y-%m-%d will be replaced by the year, month and day the file was moved. See https://strftime.org/ for available format codes. 
+    rename_moved_files: 'moved-%Y-%m-%d_{}' # optional: rename files when they are moved. '{}' will be replaced by the original filename. 
+                                # Make sure the given 'pattern' still matches after renaming!
+                                # % format codes can be used to add date and time. %Y-%m-%d will be replaced by the year, month and day the file was moved. 
+                                # See https://strftime.org/ for available format codes. 
     weekly:                     # optional: defines a directory to keep weekly backups. Directory must already exist.
         directory: /data/backups/test_repo1/weekly/
         keep: 1                 # how many weekly backups you want to keep
     monthly:                    # optional: defines a directory to keep monthly backups. Directory must already exist.
-        directory: monthly      # if no absolute path is given, it will be interpreted as realtive to the base directory. In this example the resulting absolute path is '/data/backups/test_repo1/monthly'
+        directory: monthly      # if no absolute path is given, it will be interpreted as realtive to the base directory. 
+                                # In this example the resulting absolute path is '/data/backups/test_repo1/monthly'
         keep: 6                 # how many monthly backups you want to keep
     yearly:                     # optional: defines a directory to keep yearly backups. Directory must already exist.
         directory: yearly
@@ -56,7 +65,8 @@ backup_repository:
     warn_bytes: 10
     delete_old: true
     compliance_check:           # optional: check if content of newest backup file matches the given regular expressions. Only works for text files!
-      - regex: '^ip access-list 1 1\.2\.3\.4$' # Put 'single quotes' around regex and violation message! All Python regular expressions should work. See https://www.rexegg.com/regex-quickstart.html for example.
+      - regex: '^ip access-list 1 1\.2\.3\.4$' # Put 'single quotes' around regex and violation message! All Python regular expressions should work. 
+                                # See https://www.rexegg.com/regex-quickstart.html for example.
         violation_message: 'IP 1.2.3.4 is missing in ACL 1!' # optional, but usefull especially with long regexes.
       - regex: '^password (default|unsafe)'
         must_not_match: true    # regex must not match -> raise a violation if it matches
@@ -64,14 +74,18 @@ backup_repository:
       - regex: '^ip access-list 1 (?!1\.2\.3\.4$|2\.3\.4\.5$)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
         must_not_match: true
         violation_message: 'Unallowed IP \1 in ACL 1!'
-    compare_with_previous:      # optional: compare newest file with previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated!
+    compare_with_previous:      # optional: compare newest file with previous file. For this to work properly, the script should be run at the same interval,
+                                # at which the backup files are generated!
         warn_if_changed: true   # warn if newest file changed compared to previous one.
         warn_if_equal: false    # warn if newest file equals previous one.
-        log_diff: true          # log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
+        log_diff: true          # log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). 
+                                # Log will become large if there are many changes!
         delete_if_equal: true   # only keep the newest file if it differs from the previous one, otherwise delete it.
         warn_age_limit: 1       # optional: don't warn about changes or log differences if newest file is older than the defined age in days.
-        ignore_regex: '^: saved at .*' # optional: ignore the parts of the file which match the given regex. No warning is issued for changes in ignored parts. Only works for text files smaller than 1MB.
-        delete_if_ignored: true # optional: also delete newest file if only parts changed, which are ignored by the ignore_regex. Has no effect if delete_if_equal is not set to true.
+        ignore_regex: '^: saved at .*' # optional: ignore the parts of the file which match the given regex. No warning is issued for changes in ignored parts. 
+                                # Only works for text files smaller than 1MB.
+        delete_if_ignored: true # optional: also delete newest file if only parts changed, which are ignored by the ignore_regex. 
+                                # Has no effect if delete_if_equal is not set to true.
 
 # - directory:   ...            # you can add as many repository directories here as you want
 #   pattern: ...
@@ -79,7 +93,8 @@ backup_repository:
 
 logging:
     level: info                 # possible values: debug, info, warning, error, critical. 
-                                # "warning" is useful if you run the script via cron and only want to be notified if there is a problem. Otherwise "info" is usually a good choice.
+                                # "warning" is useful if you run the script via cron and only want to be notified if there is a problem. 
+                                # Otherwise "info" is usually a good choice.
     file: /var/log/bck_mgmt.log # log file destination. If omitted, log will go to stdout.
 
 reporting:
