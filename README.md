@@ -52,62 +52,62 @@ Make sure you test the script with non-critical files first. You can also set "d
 
 ### defaults:
 
-This Sections allowes to define default values, which apply to all directories defined under `backup_repository`. All options from directory definitions are allowed (see below). Options can be overwriten for individual directories. Dictionaries (like `weekly:`) and lists (like `compliance_check:`) will be combined to one dict / list including all items from default section and indivividual directory config.
+This section allows you to define default values that apply to all directories defined under `backup_repository`. All options from directory definitions are allowed (see below). Options can be overwritten for individual directories. Dictionaries (like `weekly:`) and lists (like `compliance_check:`) will be combined to one dict / list including all items from default section and individual directory config.
 
 ### backup_repository:
 
 Here you define a list of your backup base directories. For each base directory you can set the following options:
 
-- **`directory` (required, path)**: Base directory path of the backup repository. Should be an absolute path.
-- **`alias` (optional, string)**: An optional alias for the repository, which will be used in reports and logs.
-- **`pattern` (required, string)**: The pattern of backup files to process. Use "*" as wildcard character and put the entire expression into quotation marks. "**" can be used to also search files in subdirectories recursively (Use with caution!).
-- **`keep` (optional, int)**: Number of recent backup files to keep in the base directory.
-- **`warn_age` (optional, int)**: Number of days to issue a warning if the newest file is older.
-- **`warn_bytes` (optinal, int)**: Number of bytes below which a warning is issued if the newest file is smaller.
-- **`delete_old` (required, bool)**: Whether old files should be deleted. If set to false or omitted, the script will only log the files, which would have been deleted (usefull for tests).
-- **`move_old_to` (optional, path)**: The optional directory to move old files to instead of deleting them. Overwrites 'delete_old'.
-- **`rename_moved_files` (optional, string)**: The optional naming convention for moved files. '{}' will be replaced by the original filename. Make sure the given 'pattern' still matches after renaming! % format codes can be used to add date and time. `%Y-%m-%d` will be replaced by the year, month and day the file was moved. See https://strftime.org/ for available format codes. 
-- **`pull` (optional)**: Pull backups using custom command
-    - **`command` (required, string)**: The (shell-)command to execute the pull operation. % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
-    - **`shell` (optional, bool)**: Whether to execute the command in the shell.
-    - **`timeout` (optional, int)**: The timeout for the pull operation in seconds.
-- **`weekly` (optional)**:
-    - **`directory` (required, path)**: Directory for keeping weekly backups (must be already existing).
-    - **`keep` (required, int)**: Number of weekly backups to keep.
-- **`monthly` (optional)**:
-    - **`directory` (required, path)**: Directory for keeping monthly backups (must be already existing).
-    - **`keep` (required, int)**: Number of monthly backups to keep.
-- **`yearly` (optional)**:
-    - **`directory` (required, path)**: Directory for keeping yearly backups (must be already existing).
-    - **`keep` (required, int)**: Number of yearly backups to keep.
-- **`compliance_check` (optional, list)**: Check if content of newest backup file matches the given regular expressions. Only works for text files!
-    - **`regex` (required, string)**: Regular expression for content check. Put 'single quotes' around regex and violation message! All Python regular expressions should work. See https://www.rexegg.com/regex-quickstart.html for example.
-    - **`violation_message` (optional, string)**: Violation message for non-matching content.
-    - **`must_not_match` (optional, bool)**: If true: raise a violation if the regex matches.
-- **`compare_with_previous` (optional)**: Compare newest file with previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated.
-    - **`warn_if_changed` (optional, bool)**: Warn if the newest file changed compared to the previous one.
-    - **`warn_if_equal` (optional, bool)**: Warn if the newest file equals the previous one.
-    - **`log_diff` (optional, bool)**: Log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
-    - **`delete_if_equal` (optional, bool)**: Only keep the newest file if it differs from the previous one, otherwise delete it.
-    - **`warn_age_limit` (optional, int)**: Age limit for warnings about changes. No warning is issued, if newest file is older than the defined age in days.
-    - **`ignore_regex` (optional, string)**: Regex to ignore parts of the file. No warning is issued for changes in ignored parts. Only works for text files smaller than 1MB.
-    - **`delete_if_ignored` (optional, bool):** Delete newest file if only ignored parts changed. Has no effect if `delete_if_equal` is not set to true.
+- **directory** *(required, path)*: Base directory path of the backup repository. Should be an absolute path.
+- **alias** *(optional, string)*: An optional alias for the repository, which will be used in reports and logs.
+- **pattern** *(required, string)*: The pattern of backup files to process. Use "*" as wildcard character and put the entire expression into quotation marks. "**" can be used to also search files in subdirectories recursively (Use with caution!).
+- **keep** *(optional, int)*: Number of recent backup files to keep in the base directory.
+- **warn_age** *(optional, int)*: Number of days to issue a warning if the newest file is older.
+- **warn_bytes** *(optional, int)*: Number of bytes below which a warning is issued if the newest file is smaller.
+- **delete_old** *(required, bool)*: Whether old files should be deleted. If set to false or omitted, the script will only log the files, which would have been deleted (useful for tests).
+- **move_old_to** *(optional, path)*: The optional directory to move old files to instead of deleting them. Overwrites 'delete_old'.
+- **rename_moved_files** *(optional, string)*: The optional naming convention for moved files. '{}' will be replaced by the original filename. Make sure the given 'pattern' still matches after renaming! % format codes can be used to add date and time. `%Y-%m-%d` will be replaced by the year, month and day the file was moved. See https://strftime.org/ for available format codes. 
+- **pull** *(optional)*: Pull backups using custom command
+    - **command** *(required, string)*: The (shell-)command to execute the pull operation. % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
+    - **shell** *(optional, bool)*: Whether to execute the command in the shell.
+    - **timeout** *(optional, int)*: The timeout for the pull operation in seconds.
+- **weekly** *(optional)*:
+    - **directory** *(required, path)*: Directory for keeping weekly backups (must be already existing).
+    - **keep** *(required, int)*: Number of weekly backups to keep.
+- **monthly** *(optional)*:
+    - **directory** *(required, path)*: Directory for keeping monthly backups (must be already existing).
+    - **keep** *(required, int)*: Number of monthly backups to keep.
+- **yearly** *(optional)*:
+    - **directory** *(required, path)*: Directory for keeping yearly backups (must be already existing).
+    - **keep** *(required, int)*: Number of yearly backups to keep.
+- **compliance_check** *(optional, list)*: Check if content of newest backup file matches the given regular expressions. Only works for text files!
+    - **regex** *(required, string)*: Regular expression for content check. Put 'single quotes' around regex and violation message! All Python regular expressions should work. See https://www.rexegg.com/regex-quickstart.html for example.
+    - **violation_message** *(optional, string)*: Violation message for non-matching content.
+    - **must_not_match** *(optional, bool)*: If true: raise a violation if the regex matches.
+- **compare_with_previous** *(optional)*: Compare newest file with previous file. For this to work properly, the script should be run at the same interval at which the backup files are generated.
+    - **warn_if_changed** *(optional, bool)*: Warn if the newest file changed compared to the previous one.
+    - **warn_if_equal** *(optional, bool)*: Warn if the newest file equals the previous one.
+    - **log_diff** *(optional, bool)*: Log the differences between the two most recent files at INFO level. Only works for text files smaller than 1MB (like config files etc.). Log will become large if there are many changes!
+    - **delete_if_equal** *(optional, bool)*: Only keep the newest file if it differs from the previous one, otherwise delete it.
+    - **warn_age_limit** *(optional, int)*: Age limit for warnings about changes. No warning is issued, if newest file is older than the defined age in days.
+    - **ignore_regex** *(optional, string)*: Regex to ignore parts of the file. No warning is issued for changes in ignored parts. Only works for text files smaller than 1MB.
+    - **delete_if_ignored** *(optional, bool)*: Delete newest file if only ignored parts changed. Has no effect if `delete_if_equal` is not set to true.
 
 ### logging:
 
-- **`level` (required, string)**: The log level (options: debug, info, warning, error, critical).
-- **`file` (optional, path)**: The path to the log file. If omitted, log will go to stdout.
+- **level** *(required, string)*: The log level (options: debug, info, warning, error, critical).
+- **file** *(optional, path)*: The path to the log file. If omitted, log will go to stdout.
 
 ### reporting:
 
-- **`command` (required, string)**: The command to execute the reporting process.\
+- **command** *(required, string)*: The command to execute the reporting process.\
 The following variables will be substituted at runtime:\
 `{exitcode}` (integer): 0 = ok, 1 = warning, 2 = critical\
 `{exitstatus}` (string): "OK", "WARNING" or "CRITICAL"\
 `{report}` (string): multiline execution report and summary of all repositories\
 `{perfdata}` (string): performance data in Nagios compatible format\
 % format codes can be used to add date and time. See https://strftime.org/ for available format codes.
-- **`shell` (optional, bool)** : Whether to execute the command in the shell.
+- **shell** *(optional, bool)*: Whether to execute the command in the shell.
 
 ### Minimal Example
 

@@ -6,7 +6,7 @@ defaults:
     # This section allows you to set default values for all directories in the backup repo. 
     # Entries of individual directories have priority over the respective entries in defaults section.
     # List items like the rules under 'compliance_check' will be combined to one list including all items 
-    # from default section and indivividual directory config.
+    # from default section and individual directory config.
     warn_age: 10
     warn_bytes: 100
     pull:
@@ -29,7 +29,7 @@ backup_repository:
                                 # If you expect daily backups, set this to 1.
     warn_bytes: 1000            # optional: the script will output a warning, if the newest file in the repo is smaller than the defined value in bytes.
     delete_old: false           # if set to false or omitted, the script will not actually delete files but log the files, 
-                                # which would have been deleted. Usefull for tests. 
+                                # which would have been deleted. Useful for tests. 
     move_old_to: /data/backups/test_repo1/archive/ # optional: move files to this directory instead of deleting them. Overwrites 'delete_old'.
     rename_moved_files: 'moved-%Y-%m-%d_{}' # optional: rename files when they are moved. '{}' will be replaced by the original filename. 
                                 # Make sure the given 'pattern' still matches after renaming!
@@ -39,7 +39,7 @@ backup_repository:
         directory: /data/backups/test_repo1/weekly/
         keep: 1                 # how many weekly backups you want to keep
     monthly:                    # optional: defines a directory to keep monthly backups. Directory must already exist.
-        directory: monthly      # if no absolute path is given, it will be interpreted as realtive to the base directory. 
+        directory: monthly      # if no absolute path is given, it will be interpreted as relative to the base directory. 
                                 # In this example the resulting absolute path is '/data/backups/test_repo1/monthly'
         keep: 6                 # how many monthly backups you want to keep
     yearly:                     # optional: defines a directory to keep yearly backups. Directory must already exist.
@@ -67,7 +67,7 @@ backup_repository:
     compliance_check:           # optional: check if content of newest backup file matches the given regular expressions. Only works for text files!
       - regex: '^ip access-list 1 1\.2\.3\.4$' # Put 'single quotes' around regex and violation message! All Python regular expressions should work. 
                                 # See https://www.rexegg.com/regex-quickstart.html for example.
-        violation_message: 'IP 1.2.3.4 is missing in ACL 1!' # optional, but usefull especially with long regexes.
+        violation_message: 'IP 1.2.3.4 is missing in ACL 1!' # optional, but useful especially with long regexes.
       - regex: '^password (default|unsafe)'
         must_not_match: true    # regex must not match -> raise a violation if it matches
         violation_message: 'Unsafe Password "\1" set!' # \1 will be replaced by the 1st group match. \2 would be replaced by the 2nd and so on.
