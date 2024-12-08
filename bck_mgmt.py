@@ -87,12 +87,18 @@ def main(config_file):
         newest_file_deleted = 0
         compliance_violations = 0
         newest_file = None
-        previous_file = None
         newest_file_content = None
-        previous_file_content = None
+        newest_file_size = 0
+        newest_file_mtime = datetime.datetime.fromtimestamp(0)
+        newest_file_age = datetime.datetime.now() - newest_file_mtime
+        yearly_path = monthly_path = weekly_path = move_old_path = None
+        years_in_yearly	 = months_in_monthly = weeks_in_weekly = []
 
         warn_str = ""
         crit_str = ""
+        
+        # List of files in the directory. Each file is represented by a tuple containing the modification time, the file object and the file size
+        sorted_file_list: list[tuple[float, Path, int]] = []
 
         if 'alias' in repo.keys():
             alias = repo['alias']
@@ -133,7 +139,7 @@ def main(config_file):
                         capture_output = True,
                         cwd = current_dir)
                     if command_output.stderr:
-                        logging.error("{}: An error occured during execution of pull command: {}".format(alias, command_output.stderr.decode(errors='ignore')))
+                        logging.error("{}: An error occurred during execution of pull command: {}".format(alias, command_output.stderr.decode(errors='ignore')))
                     if command_output.stdout:
                         logging.info("{}: Output of pull command: {}".format(alias, command_output.stdout.decode(errors='ignore')))
                 except subprocess.TimeoutExpired:
@@ -149,6 +155,7 @@ def main(config_file):
                 log = "Weekly directory '{}' does not exist. Please create the directory. ".format(weekly_path)
                 logging.error(alias + ": " + log)
                 crit_str += log
+                weekly_path = None
             else:
                 weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%W") for f in weekly_path.glob(repo['pattern']))
                 logging.debug("{}: Found weekly directory '{}' with files from the following weeks: {}. ".format(alias, weekly_path, weeks_in_weekly))
@@ -160,6 +167,7 @@ def main(config_file):
                 log = "Monthly directory '{}' does not exist. Please create the directory. ".format(monthly_path)
                 logging.error(alias + ": " + log)
                 crit_str += log
+                monthly_path = None
             else:
                 months_in_monthly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m") for f in monthly_path.glob(repo['pattern']))
                 logging.debug("{}: Found monthly directory '{}' with files from the following months: {}. ".format(alias, monthly_path, months_in_monthly))
@@ -171,6 +179,7 @@ def main(config_file):
                 log = "Yearly directory '{}' does not exist. Please create the directory. ".format(yearly_path)
                 logging.error(alias + ": " + log)
                 crit_str += log
+                yearly_path = None
             else:
                 years_in_yearly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y") for f in yearly_path.glob(repo['pattern']))
                 logging.debug("{}: Found yearly directory '{}' with files from the following years: {}. ".format(alias, yearly_path, years_in_yearly))
@@ -182,6 +191,7 @@ def main(config_file):
                 log = "'move_old_to' directory '{}' does not exist. Please create the directory. ".format(move_old_path)
                 logging.error(alias + ": " + log)
                 crit_str += log
+                move_old_path = None
 
         if crit_str:
             report_string += "\n[CRITICAL] " + crit_str
@@ -245,12 +255,13 @@ def main(config_file):
                             logging.debug("{}: Newest file '{}' is compliant with regex '{}'. ".format(alias, newest_file.name, check['regex']))
 
         # compare newest file with previous file:
-        if 'compare_with_previous' in repo.keys() and len(sorted_file_list) >= 2:
+        if 'compare_with_previous' in repo.keys() and newest_file and len(sorted_file_list) >= 2:
             comp_cfg = repo['compare_with_previous']
 
             previous_file = sorted_file_list[-2][1]
             previous_file_size = sorted_file_list[-2][2]
             previous_file_mtime = datetime.datetime.fromtimestamp(sorted_file_list[-2][0])
+            previous_file_content = None
 
             ignore_changes = False
 
@@ -354,16 +365,16 @@ def main(config_file):
                 else:
                     filename = current_file.name
 
-                if 'yearly' in repo.keys() and yearly_path.is_dir() and not current_file_year in years_in_yearly:
+                if yearly_path and not current_file_year in years_in_yearly:
                     destination = yearly_path / Path(filename)
                     years_in_yearly.append(current_file_year)
-                elif 'monthly' in repo.keys() and monthly_path.is_dir() and not current_file_month in months_in_monthly:
+                elif monthly_path and not current_file_month in months_in_monthly:
                     destination = monthly_path / Path(filename)
                     months_in_monthly.append(current_file_month)
-                elif 'weekly' in repo.keys() and weekly_path.is_dir() and not current_file_week in weeks_in_weekly:
+                elif weekly_path and not current_file_week in weeks_in_weekly:
                     destination = weekly_path / Path(filename)
                     weeks_in_weekly.append(current_file_week)
-                elif 'move_old_to' in repo.keys() and move_old_path.is_dir():
+                elif move_old_path:
                     destination = move_old_path / Path(filename)
 
                 if destination is not None:
@@ -399,7 +410,7 @@ def main(config_file):
                 if file_num < keep:
                     dir_size+=file[2]
                     dir_files+=1
-                elif 'move_old_to' in repo.keys() and move_old_path.is_dir():
+                elif 'move_old_to' in repo.keys() and move_old_path:
                     destination = move_old_path / Path(file[1].name)
                     if not destination.exists():
                         logging.info("{}({}): Moving '{}' to '{}'. ".format(alias, i, file[1].name, destination))
@@ -481,7 +492,7 @@ def main(config_file):
 
     # report_string now contains all the relevant information in human readable form which can be sent by mail or to a monitoring system.
     # perfdata_array contains statistics in an array. 
-    # perfdata_string contains the same data in a string seperated by spaces.
+    # perfdata_string contains the same data in a string separated by spaces.
 
     if 'reporting' in parsed_config.keys():
         reporting_config = parsed_config['reporting']
@@ -505,7 +516,7 @@ def main(config_file):
                 shell = shell, 
                 capture_output = True)
             if command_output.stderr:
-                logging.error("An error occured during execution of reporting command: {}".format(command_output.stderr.decode(errors='ignore')))
+                logging.error("An error occurred during execution of reporting command: {}".format(command_output.stderr.decode(errors='ignore')))
             if command_output.stdout:
                 logging.info("Output of reporting command: {}".format(command_output.stdout.decode(errors='ignore')))
 
