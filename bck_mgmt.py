@@ -12,7 +12,7 @@ import filecmp
 import subprocess
 import shlex
 
-VERSION = "1.5 (15.10.2023)"
+VERSION = "1.6 (24.01.2025)"
 MAX_FILE_SIZE_FOR_COMPLIANCE_CHECK = 1048576 # do not check files bigger than 1MB (a quite conservative limit to avoid high mem usage or to long log output)
 DEBUG = False
 
@@ -157,7 +157,7 @@ def main(config_file):
                 crit_str += log
                 weekly_path = None
             else:
-                weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%Y-%W") for f in weekly_path.glob(repo['pattern']))
+                weeks_in_weekly = list(datetime.date.fromtimestamp(f.stat().st_mtime).strftime("%G-%V") for f in weekly_path.glob(repo['pattern']))
                 logging.debug("{}: Found weekly directory '{}' with files from the following weeks: {}. ".format(alias, weekly_path, weeks_in_weekly))
                 subdirs.append('weekly')
 
@@ -351,7 +351,7 @@ def main(config_file):
             current_file = file[1]
             current_file_mtime = datetime.datetime.fromtimestamp(file[0])
             current_file_size = file[2]
-            current_file_week = current_file_mtime.strftime("%Y-%W")
+            current_file_week = current_file_mtime.strftime("%G-%V")
             current_file_month = current_file_mtime.strftime("%Y-%m")
             current_file_year = current_file_mtime.strftime("%Y")
 
